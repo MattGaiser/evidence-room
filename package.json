@@ -1,0 +1,40 @@
+{
+  "name": "evidence-room",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Evidence-linked submission review with an independent human scorecard.",
+  "author": "Matthew Gaiser",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "build": "tsc -b && vite build && node scripts/dotnet.mjs build EvidenceRoom.sln --configuration Release",
+    "start": "node scripts/start.mjs",
+    "dev": "vite --host 127.0.0.1",
+    "test": "node scripts/dotnet.mjs test EvidenceRoom.sln --configuration Release && python -m unittest discover -s worker -p test_*.py",
+    "test:e2e": "playwright test",
+    "test:live": "node scripts/live-check.mjs",
+    "check": "npm run lint && npm run format:check && npm run build && npm test && npm run test:e2e",
+    "lint": "biome lint web scripts tests",
+    "format:check": "prettier --check .",
+    "format": "prettier --write ."
+  },
+  "dependencies": {
+    "@fontsource-variable/manrope": "5.3.0",
+    "lucide-react": "1.56.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "@biomejs/biome": "2.5.15",
+    "@playwright/test": "1.64.0",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "prettier": "3.9.10",
+    "typescript": "7.0.2",
+    "vite": "8.3.4"
+  }
+}

@@ -1,0 +1,268 @@
+{
+  "id": "water-access",
+  "name": "Water Access Challenge",
+  "round": "Pilot readiness",
+  "version": 1,
+  "brief": "Assess whether a water-access concept has enough evidence and a credible plan to justify a supervised field pilot. Compare evidence quality, resource assumptions, delivery readiness, and the benefit to the intended community. A promising idea can still need clarification.",
+  "criteria": [
+    {
+      "id": "evidence",
+      "name": "Test evidence",
+      "weight": 40,
+      "description": "Look for a stated test method, measured outcomes, operating conditions, limitations, and independent corroboration. Distinguish projections from observations."
+    },
+    {
+      "id": "resources",
+      "name": "Cost & resources",
+      "weight": 25,
+      "description": "Look for capital and operating assumptions, energy and material use, maintenance, and the boundary of any cost claim. An unexplained headline price is insufficient."
+    },
+    {
+      "id": "delivery",
+      "name": "Pilot delivery",
+      "weight": 20,
+      "description": "Look for a specific site, delivery milestones, accountable partners, operational risks, and a way to test or resolve those risks."
+    },
+    {
+      "id": "impact",
+      "name": "Community benefit",
+      "weight": 15,
+      "description": "Look for a defined user need, a credible baseline, evidence of engagement, and a way to measure benefit. Do not require a conventional technology if the entry addresses the need."
+    }
+  ],
+  "submissions": [
+    {
+      "id": "tidewell",
+      "team": "Tidewell Collective",
+      "title": "A solar-powered water station for coastal clinics",
+      "paragraphs": [
+        {
+          "id": "p1",
+          "text": "We propose a modular reverse-osmosis station for two coastal clinics that currently purchase trucked water. A solar array and storage tank allow daytime production. Our first pilot would test reliability and operating cost before adding more sites."
+        },
+        {
+          "id": "p2",
+          "text": "In a 30-day indoor trial, the prototype produced an average of 420 litres per day from feed water at 18 grams of salt per litre. Logged energy use averaged 3.2 kWh per cubic metre. We collected conductivity readings twice daily. The trial did not include microbiological testing, full-strength seawater, or an independent laboratory. Raw logs are available on request but are not attached to this application."
+        },
+        {
+          "id": "p3",
+          "text": "Our preliminary operating estimate is $1.90 per cubic metre, assuming eight productive hours per day and membrane replacement every 18 months. This estimate includes energy and replacement membranes. It excludes the solar array, storage tank, transport, operator wages, and laboratory testing. We have not yet obtained installation quotes."
+        },
+        {
+          "id": "p4",
+          "text": "A clinic network has expressed interest in a 90-day pilot, but there is no signed site agreement. During month one we plan to commission the station and baseline water use; months two and three would track downtime, energy, and delivered volume. A local maintenance partner still needs to be appointed. Membrane fouling and extended cloudy weather are the main risks."
+        },
+        {
+          "id": "p5",
+          "text": "Clinic managers report spending about $310 per month on trucked water. We interviewed three managers, but have not verified invoices or spoken with patients. We would measure avoided water purchases, hours without water, and staff time spent arranging deliveries. Community consultation and a water-quality testing protocol are prerequisites for operating the pilot."
+        }
+      ],
+      "exampleReview": {
+        "summary": "The entry reports a bounded bench trial and makes several cost exclusions explicit. Field reliability, water quality, full installed cost, and site commitments need clarification before a pilot recommendation.",
+        "criteria": [
+          {
+            "criterionId": "evidence",
+            "status": "partial",
+            "finding": "The trial has a duration, output and energy measurements, but does not establish field performance or independently verified water quality.",
+            "evidence": [
+              {
+                "paragraphId": "p2",
+                "quote": "The trial did not include microbiological testing, full-strength seawater, or an independent laboratory."
+              }
+            ],
+            "question": "What test protocol and independent results will establish water quality under the intended field conditions?"
+          },
+          {
+            "criterionId": "resources",
+            "status": "partial",
+            "finding": "The operating estimate states its boundary, but omits major installation and staffing costs.",
+            "evidence": [
+              {
+                "paragraphId": "p3",
+                "quote": "It excludes the solar array, storage tank, transport, operator wages, and laboratory testing."
+              }
+            ],
+            "question": "Provide an installed-cost estimate and an operating budget that includes staffing and testing."
+          },
+          {
+            "criterionId": "delivery",
+            "status": "partial",
+            "finding": "A staged pilot plan is described; a site agreement and maintenance ownership are unresolved.",
+            "evidence": [
+              {
+                "paragraphId": "p4",
+                "quote": "A clinic network has expressed interest in a 90-day pilot, but there is no signed site agreement."
+              }
+            ],
+            "question": "Who will own maintenance and what written agreement secures the pilot site?"
+          },
+          {
+            "criterionId": "impact",
+            "status": "partial",
+            "finding": "Interviews and proposed outcome measures identify a relevant need, but the baseline is self-reported.",
+            "evidence": [
+              {
+                "paragraphId": "p5",
+                "quote": "We interviewed three managers, but have not verified invoices or spoken with patients."
+              }
+            ],
+            "question": "How will you validate the cost baseline and include patients in setting the pilot's success measures?"
+          }
+        ],
+        "flags": []
+      }
+    },
+    {
+      "id": "commons",
+      "team": "Commons Water Lab",
+      "title": "Repair the network before adding new supply",
+      "paragraphs": [
+        {
+          "id": "p1",
+          "text": "Our approach challenges the assumption that the community first needs a new treatment plant. We propose locating and repairing leaks in an existing treated-water network. A low-cost acoustic sensor would prioritize inspections, with human technicians confirming every suspected leak. The objective is reliable access rather than a particular treatment technology."
+        },
+        {
+          "id": "p2",
+          "text": "We placed six sensors on a university training network for 14 days. Technicians introduced ten known leaks; the system identified eight, missed two, and raised three false alarms. The university facilities team recorded the leak locations before testing. These results do not demonstrate performance on buried rural pipe or measure water savings at community scale."
+        },
+        {
+          "id": "p3",
+          "text": "The prototype bill of materials is $86 per sensor at single-unit prices, excluding installation and communications. We expect a technician to inspect alerts weekly. We have not estimated inspection labour, replacement batteries, or repair costs. Avoided water loss is a potential benefit, not measured revenue."
+        },
+        {
+          "id": "p4",
+          "text": "A municipal operator has offered access to a one-kilometre test segment under a signed letter of intent. The operator would own repairs and technician scheduling. We propose four weeks of baseline metering followed by eight weeks of testing, tracking confirmed leaks, false alarms, litres recovered, and inspection hours. Communications coverage and sensor drift will be tested before deployment."
+        },
+        {
+          "id": "p5",
+          "text": "In two community workshops, residents identified intermittent service as the main issue. The operator's preliminary records show four outages per month, but pressure and supply volumes have not been independently audited. Residents will help define an acceptable outage target and can report service changes by phone."
+        }
+      ],
+      "exampleReview": {
+        "summary": "A demand-side approach addresses water access through network reliability. The controlled test reports both errors and successes; field transfer and complete operating cost remain open questions.",
+        "criteria": [
+          {
+            "criterionId": "evidence",
+            "status": "partial",
+            "finding": "The controlled test quantifies detection and error rates and identifies the limits of extrapolation.",
+            "evidence": [
+              {
+                "paragraphId": "p2",
+                "quote": "Technicians introduced ten known leaks; the system identified eight, missed two, and raised three false alarms."
+              }
+            ],
+            "question": "What field test will establish performance on buried pipe and measured water savings?"
+          },
+          {
+            "criterionId": "resources",
+            "status": "partial",
+            "finding": "A hardware baseline exists, but the operating budget is incomplete.",
+            "evidence": [
+              {
+                "paragraphId": "p3",
+                "quote": "We have not estimated inspection labour, replacement batteries, or repair costs."
+              }
+            ],
+            "question": "What is the total cost per test segment, including inspections, communications and repairs?"
+          },
+          {
+            "criterionId": "delivery",
+            "status": "documented",
+            "finding": "The application describes site access, accountable operations and measurable stages for the pilot.",
+            "evidence": [
+              {
+                "paragraphId": "p4",
+                "quote": "The operator would own repairs and technician scheduling."
+              },
+              {
+                "paragraphId": "p4",
+                "quote": "We propose four weeks of baseline metering followed by eight weeks of testing, tracking confirmed leaks, false alarms, litres recovered, and inspection hours."
+              }
+            ],
+            "question": null
+          },
+          {
+            "criterionId": "impact",
+            "status": "partial",
+            "finding": "Community engagement is described, while the service baseline still needs verification.",
+            "evidence": [
+              {
+                "paragraphId": "p5",
+                "quote": "In two community workshops, residents identified intermittent service as the main issue."
+              }
+            ],
+            "question": "How will pressure, supply volume and outages be measured consistently before and after repairs?"
+          }
+        ],
+        "flags": []
+      }
+    },
+    {
+      "id": "clearcurrent",
+      "team": "Clearcurrent Systems",
+      "title": "Container-scale desalination with heat recovery",
+      "paragraphs": [
+        {
+          "id": "p1",
+          "text": "We propose a container-scale thermal desalination unit using heat recovered from a nearby industrial process. The concept would supply a community storage point through an existing distribution operator. We describe projected performance below; a working prototype has not yet been built."
+        },
+        {
+          "id": "p2",
+          "text": "A spreadsheet model predicts 2,000 litres per day using a constant waste-heat stream at 75 degrees Celsius. The prediction assumes uninterrupted heat supply and ideal heat-exchanger performance. We have no measured output, energy balance, fouling test, or independent validation. The model file and its equations are not included."
+        },
+        {
+          "id": "p3",
+          "text": "The pilot would require a heat-exchanger skid, pumps, controls, and a storage tank. We have not prepared a cost estimate or obtained quotations. Water would be priced after a partner agrees to host the pilot. Maintenance requirements and residual-brine handling remain to be designed."
+        },
+        {
+          "id": "p4",
+          "text": "We are speaking with industrial sites but have not selected one. The next milestone is to secure access to a heat source and build a small test unit. No community interviews or distribution agreement have been completed. We need to establish the intended users, baseline water access, and a measurable benefit before proposing a field pilot."
+        }
+      ],
+      "exampleReview": {
+        "summary": "The submission is explicit that it is a modeled concept. The review should distinguish this from a tested pilot candidate and request the missing evidence and delivery assumptions.",
+        "criteria": [
+          {
+            "criterionId": "evidence",
+            "status": "partial",
+            "finding": "A modeled prediction is provided, with no experimental validation.",
+            "evidence": [
+              {
+                "paragraphId": "p2",
+                "quote": "We have no measured output, energy balance, fouling test, or independent validation."
+              }
+            ],
+            "question": "Can you provide the model and a test plan that validates the key assumptions with measurements?"
+          },
+          {
+            "criterionId": "resources",
+            "status": "missing",
+            "finding": "No capital or operating cost estimate is supplied.",
+            "evidence": [],
+            "question": "Provide a preliminary equipment and operating budget with stated assumptions."
+          },
+          {
+            "criterionId": "delivery",
+            "status": "partial",
+            "finding": "An initial milestone is named, but the site and operational partners are not secured.",
+            "evidence": [
+              {
+                "paragraphId": "p4",
+                "quote": "We are speaking with industrial sites but have not selected one."
+              }
+            ],
+            "question": "Which site, heat supplier and operating partner would support a pilot, and on what schedule?"
+          },
+          {
+            "criterionId": "impact",
+            "status": "missing",
+            "finding": "The entry does not yet define the users, a baseline or a measured community outcome.",
+            "evidence": [],
+            "question": "Who would use the water, what access problem do they face, and how would benefit be measured?"
+          }
+        ],
+        "flags": []
+      }
+    }
+  ]
+}
