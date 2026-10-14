@@ -77,6 +77,28 @@ export default function App() {
   const [citation, setCitation] = useState<Citation | null>(null);
   const [reload, setReload] = useState(0);
   const [sourceExpanded, setSourceExpanded] = useState(true);
+  const changeTab = (next: Tab) => {
+    setTab(next);
+    if (window.matchMedia('(max-width: 760px)').matches) setSourceExpanded(next === 'submission');
+  };
+  const controls = useRef<HTMLDivElement>(null);
+  const previousTab = useRef(tab);
+  useEffect(() => {
+    if (previousTab.current === tab) return;
+    previousTab.current = tab;
+    const frame = requestAnimationFrame(() => {
+      const headingId = {
+        submission: 'start-title',
+        evidence: 'analysis-title',
+        decision: 'scorecard-title',
+      }[tab];
+      if (!controls.current || !document.getElementById(headingId)) return;
+      controls.current.scrollTop = 0;
+      document.getElementById(headingId)?.focus({ preventScroll: true });
+      controls.current.scrollIntoView({ block: 'start' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [tab]);
   const feedback = useCallback((text: string) => setNotice({ id: ++noticeId.current, text }), []);
   const dismissNotice = useCallback(() => setNotice(null), []);
   const notifyError = (e: unknown) =>
@@ -120,9 +142,7 @@ export default function App() {
     url.searchParams.set('entry', selected);
     window.history.replaceState(null, '', url);
   }, [selected]);
-  useEffect(() => {
-    if (window.matchMedia('(max-width: 760px)').matches) setSourceExpanded(tab === 'submission');
-  }, [tab]);
+
   useEffect(() => {
     const warn = (e: BeforeUnloadEvent) => {
       if (dirtyRef.current) {
@@ -165,7 +185,7 @@ export default function App() {
     if (entry.id === selected || !canLeave()) return;
     if (busy) cancelAnalysis();
     setSelected(entry.id);
-    setTab('submission');
+    changeTab('submission');
     setDirty(false);
     setCitation(null);
     window.scrollTo({ top: 0 });
@@ -204,7 +224,7 @@ export default function App() {
       feedback(
         'AI analysis saved. Every cited quotation passed the source check. Review each finding before scoring.',
       );
-      setTab('evidence');
+      changeTab('evidence');
     } catch (e) {
       if (!controller.signal.aborted && request.current === controller) notifyError(e);
     } finally {
@@ -419,7 +439,7 @@ export default function App() {
                     className={tab === item.id ? 'active' : ''}
                     aria-current={tab === item.id ? 'step' : undefined}
                     onClick={() => {
-                      setTab(item.id);
+                      changeTab(item.id);
                       setCitation(null);
                     }}
                   >
@@ -504,7 +524,7 @@ export default function App() {
                     })}
                   </div>
                 </section>
-                <div className="case-controls">
+                <div className="case-controls" ref={controls}>
                   <section
                     hidden={tab !== 'submission'}
                     className="panel start-review"
@@ -514,10 +534,9 @@ export default function App() {
                       <ShieldCheck size={26} />
                     </span>
                     <p className="eyebrow">A focused review</p>
-                    <h3 id="start-title">
+                    <h3 id="start-title" tabIndex={-1}>
                       Read it. Check it.
-                      <br />
-                      Make the call.
+                      <br /> Make the call.
                     </h3>
                     <p>
                       Use four criteria to decide whether the evidence supports a supervised pilot,
@@ -549,7 +568,7 @@ export default function App() {
                     <button
                       type="button"
                       className="button primary full"
-                      onClick={() => setTab('evidence')}
+                      onClick={() => changeTab('evidence')}
                     >
                       Review the evidence
                       <ArrowRight size={16} />
@@ -564,7 +583,9 @@ export default function App() {
                     <div className="panel-heading">
                       <div>
                         <p className="eyebrow">Rubric v{workspace.competition.version}</p>
-                        <h3 id="analysis-title">Evidence, criterion by criterion</h3>
+                        <h3 id="analysis-title" tabIndex={-1}>
+                          Evidence, criterion by criterion
+                        </h3>
                       </div>
                       <Sparkles size={21} />
                     </div>
@@ -712,7 +733,7 @@ export default function App() {
                             {detail.assessment?.finalized
                               ? 'The final recommendation is locked. A submission revision starts a fresh review.'
                               : !workspace.ai.available
-                                ? 'Live AI is not configured. Example analyses and independent scoring still work.'
+                                ? 'Live AI is off. Example analyses and independent scoring still work.'
                                 : workspace.ai.remaining === 0
                                   ? 'The configured AI allowance has been used. Manual review remains available.'
                                   : 'Sends this submission and rubric to OpenAI. A new analysis leaves your scores unchanged.'}
@@ -722,7 +743,7 @@ export default function App() {
                       <button
                         type="button"
                         className="button primary full"
-                        onClick={() => setTab('decision')}
+                        onClick={() => changeTab('decision')}
                       >
                         Continue to your assessment
                         <ArrowRight size={16} />
@@ -796,10 +817,10 @@ export default function App() {
             if (next.entry.id === selected) {
               acceptDetail(next);
               setCitation(null);
-              setTab('submission');
+              changeTab('submission');
             } else {
               setSelected(next.entry.id);
-              setTab('submission');
+              changeTab('submission');
             }
             void refreshWorkspace().catch(() => {});
             feedback(

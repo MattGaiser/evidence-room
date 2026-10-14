@@ -4,6 +4,8 @@ A submission review workbench that helps a judge trace findings to source eviden
 
 Open a submission, check its evidence against four criteria, enter your own scores, then export the complete case packet. AI can organize evidence; it never fills in scores or selects an outcome. Three fictional water-access proposals illustrate measured results, unconventional approaches, and unsupported claims.
 
+![The review workspace keeps original submission passages beside source-linked findings.](docs/review-workspace.png)
+
 This is an independent work sample inspired by the XPRIZE Prize Execution Platform role. It has no affiliation with XPRIZE and uses no competitor data or official competition rubric.
 
 ## Run locally

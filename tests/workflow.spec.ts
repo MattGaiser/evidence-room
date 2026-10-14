@@ -78,12 +78,17 @@ test('draft survives reload, finalization locks the version, and export contains
   await page.reload();
   await page.getByRole('button', { name: /Score & recommend/ }).click();
   await expect(page.getByLabel('Your rationale')).toHaveValue(/field conditions/);
+  await page.setViewportSize({ width: 1024, height: 600 });
   await page.getByRole('button', { name: 'Finalize', exact: true }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.getByRole('button', { name: 'Keep editing' }).click();
   await page.getByRole('button', { name: 'Finalize', exact: true }).click();
   await page.getByRole('button', { name: 'Record recommendation', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Recommendation recorded' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Recommendation recorded' })).toBeFocused();
+  await expect(page.getByRole('heading', { name: 'Recommendation recorded' })).toBeInViewport({
+    ratio: 1,
+  });
   const download = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Export case packet', exact: true }).last().click();
   const file = await download;
@@ -366,9 +371,19 @@ for (const width of [320, 1440])
       ).violations,
     ).toEqual([]);
     await start.click();
+    await expect(
+      page.getByRole('heading', { name: 'Evidence, criterion by criterion' }),
+    ).toBeFocused();
+    await expect(
+      page.getByRole('heading', { name: 'Evidence, criterion by criterion' }),
+    ).toBeInViewport({ ratio: 1 });
     await page.locator('.evidence-quote').first().click();
     await expect(page.locator('#passage-p2 mark')).toBeVisible();
-    await page.getByRole('button', { name: /Score & recommend/ }).click();
+    await page.getByRole('button', { name: 'Continue to your assessment' }).click();
+    await expect(page.getByRole('heading', { name: 'Make the call', exact: true })).toBeFocused();
+    await expect(page.getByRole('heading', { name: 'Make the call', exact: true })).toBeInViewport({
+      ratio: 1,
+    });
     expect(
       (
         await new AxeBuilder({ page })
@@ -379,6 +394,31 @@ for (const width of [320, 1440])
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
+    if (width === 320) {
+      await page.evaluate(() => {
+        const elements = Array.from(document.querySelectorAll<HTMLElement>('body *')).filter(
+          (element) => !(element instanceof SVGElement),
+        );
+        const sizes = elements.map((element) =>
+          Number.parseFloat(getComputedStyle(element).fontSize),
+        );
+        elements.forEach((element, index) => {
+          element.style.fontSize = `${sizes[index] * 2}px`;
+        });
+      });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      );
+      for (const button of [
+        page.getByRole('button', { name: 'How it works', exact: true }),
+        page.getByRole('button', { name: 'Finalize', exact: true }),
+      ]) {
+        const box = await button.boundingBox();
+        expect(box).not.toBeNull();
+        expect(box?.x).toBeGreaterThanOrEqual(0);
+        expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(width);
+      }
+    }
   });
 
 test('HTTP boundary rejects bad origins, unknown routes, invalid scores, and source exposure', async ({

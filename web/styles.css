@@ -393,6 +393,8 @@ main:focus {
   margin-bottom: 25px;
 }
 .review-tabs button {
+  min-width: 0;
+  overflow-wrap: anywhere;
   position: relative;
   display: flex;
   align-items: center;
@@ -440,6 +442,7 @@ main:focus {
 }
 .case-controls {
   min-width: 0;
+  scroll-margin-top: 24px;
 }
 .page-footer {
   display: flex;
@@ -949,7 +952,11 @@ main:focus {
   gap: 20px;
   margin-bottom: 18px;
 }
+.scorecard-top > div {
+  min-width: 0;
+}
 .scorecard h2 {
+  overflow-wrap: anywhere;
   font-size: 23px;
   letter-spacing: -0.7px;
   margin-top: 6px;
@@ -1112,10 +1119,11 @@ main:focus {
 }
 .score-actions > div {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
 }
 .score-actions > div > button {
-  flex: 1;
+  flex: 1 1 140px;
 }
 .unsaved {
   color: var(--warning);
@@ -1543,11 +1551,14 @@ main:focus {
 }
 @media (max-width: 760px) {
   .app-header {
+    flex-wrap: wrap;
     min-height: 68px;
     padding: 15px 20px;
     gap: 15px;
   }
   .brand {
+    flex-wrap: wrap;
+    max-width: 100%;
     font-size: 22px;
   }
   .brand-mark {

@@ -63,6 +63,13 @@ export default function Scorecard({
     }
   }, [reviewId]);
   const finalized = detail.assessment?.finalized === true;
+  const resultHeading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (finalized) {
+      resultHeading.current?.focus({ preventScroll: true });
+      resultHeading.current?.scrollIntoView({ block: 'center' });
+    }
+  }, [finalized]);
   const complete = criteria.every((c) => scores[c.id] !== null);
   const total = complete
     ? criteria.reduce((n, c) => n + ((scores[c.id] ?? 0) / 4) * c.weight, 0)
@@ -119,7 +126,9 @@ export default function Scorecard({
       <div className="scorecard-top">
         <div>
           <p className="eyebrow">Your assessment</p>
-          <h2 id="scorecard-title">{finalized ? 'Recommendation recorded' : 'Make the call'}</h2>
+          <h2 id="scorecard-title" ref={resultHeading} tabIndex={-1}>
+            {finalized ? 'Recommendation recorded' : 'Make the call'}
+          </h2>
         </div>
         {finalized ? (
           <LockKeyhole size={22} />
