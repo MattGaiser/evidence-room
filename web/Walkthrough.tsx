@@ -20,7 +20,7 @@ const cards = [
   },
   {
     title: 'Follow the evidence, one criterion at a time.',
-    body: 'The analysis connects each finding to a verbatim passage. Select a quotation to reveal it in the original submission, then decide whether the interpretation holds.',
+    body: 'The analysis connects each finding to a verbatim passage. Select a quotation to reveal it in the original submission, then choose your score for that criterion while the evidence is visible.',
     detail:
       'The queue hides while you review; Show review queue brings it back. Select a quotation to highlight its source, then use Back to finding to continue.',
     Icon: Quote,
@@ -28,9 +28,9 @@ const cards = [
   },
   {
     title: 'Make an independent recommendation.',
-    body: 'Choose a score from 0 to 4 for each criterion, explain your reasoning, and recommend a pilot, clarification, or further development.',
+    body: 'Check the scores you entered during review, explain your reasoning, and recommend a pilot, clarification, or further development.',
     detail:
-      'Choosing a score opens the next unscored section. Your current section stays open for changes. Continue to the recommendation page when ready, or save a draft from either page.',
+      'Edit score returns to the relevant evidence without losing your rationale. Save a draft at any point, then finalize when all scores and your recommendation are complete.',
     Icon: ListChecks,
     label: '03 / Make the call',
   },

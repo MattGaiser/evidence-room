@@ -19,10 +19,9 @@ import {
 import EntryForm from './EntryForm';
 import SubmissionQueue from './SubmissionQueue';
 import SubmissionReader from './SubmissionReader';
-import EvidenceReview from './EvidenceReview';
 import { formatDate } from './format';
 import { focusPanelHeading } from './focus';
-import Scorecard from './Scorecard';
+import ReviewProcess from './ReviewProcess';
 import Walkthrough from './Walkthrough';
 import Notice from './Notice';
 import { api, errorText } from './types';
@@ -30,8 +29,8 @@ import type { Citation, Detail, Entry, Workspace } from './types';
 
 const tabs = [
   { id: 'submission', label: 'Read submission', Icon: FileText },
-  { id: 'evidence', label: 'Review evidence', Icon: Search },
-  { id: 'decision', label: 'Score & recommend', Icon: ClipboardCheck },
+  { id: 'evidence', label: 'Review & score', Icon: Search },
+  { id: 'decision', label: 'Recommendation', Icon: ClipboardCheck },
 ] as const;
 type Tab = (typeof tabs)[number]['id'];
 export default function App() {
@@ -67,7 +66,9 @@ export default function App() {
   const citationOrigin = useRef<HTMLElement | null>(null);
   const [reload, setReload] = useState(0);
   const [sourceExpanded, setSourceExpanded] = useState(true);
-  const changeTab = (next: Tab) => {
+  const targetHeading = useRef<string | null>(null);
+  const changeTab = (next: Tab, focusId?: string) => {
+    targetHeading.current = focusId ?? null;
     setTab(next);
     setCitation(null);
     if (next !== 'submission') setQueueExpanded(false);
@@ -83,7 +84,8 @@ export default function App() {
         evidence: 'analysis-title',
         decision: 'scorecard-title',
       }[tab];
-      focusPanelHeading(document.getElementById(headingId));
+      focusPanelHeading(document.getElementById(targetHeading.current ?? headingId));
+      targetHeading.current = null;
     });
     return () => cancelAnimationFrame(frame);
   }, [tab]);
@@ -426,14 +428,14 @@ export default function App() {
                         <span>2</span>
                         <div>
                           <strong>Trace the findings</strong>
-                          <p>Check each quotation and open question.</p>
+                          <p>Check each quotation, then score that criterion.</p>
                         </div>
                       </li>
                       <li>
                         <span>3</span>
                         <div>
                           <strong>Record your judgment</strong>
-                          <p>Score independently and explain your decision.</p>
+                          <p>Check your scores and explain your decision.</p>
                         </div>
                       </li>
                     </ol>
@@ -446,33 +448,29 @@ export default function App() {
                       <ArrowRight size={16} />
                     </button>
                   </section>
-                  <div hidden={tab !== 'evidence'}>
-                    <EvidenceReview
-                      detail={detail}
-                      criteria={workspace.competition.criteria}
-                      rubricVersion={workspace.competition.version}
-                      ai={workspace.ai}
-                      busy={busy}
-                      onCitation={showCitation}
-                      onCriterionChange={() => setCitation(null)}
-                      onAnalyze={() => void runAnalysis()}
-                      onCancel={cancelAnalysis}
-                      onContinue={() => changeTab('decision')}
-                    />
-                  </div>
-                  <div hidden={tab !== 'decision'}>
-                    <Scorecard
-                      key={`${detail.entry.id}-${detail.entry.revision}-${reload}`}
-                      detail={detail}
-                      analysisRunning={busy}
-                      criteria={workspace.competition.criteria}
-                      onSaved={acceptDetail}
-                      onFeedback={feedback}
-                      onDirty={setDirty}
-                      onSaving={setSaving}
-                      onExport={() => void exportPacket()}
-                    />
-                  </div>
+                  <ReviewProcess
+                    key={`${detail.entry.id}-${detail.entry.revision}-${reload}`}
+                    active={tab}
+                    detail={detail}
+                    criteria={workspace.competition.criteria}
+                    analysisRunning={busy}
+                    onSaved={acceptDetail}
+                    onFeedback={feedback}
+                    onDirty={setDirty}
+                    onSaving={setSaving}
+                    onExport={() => void exportPacket()}
+                    onReview={(focusId) => changeTab('evidence', focusId)}
+                    onRecommend={() => changeTab('decision')}
+                    evidence={{
+                      rubricVersion: workspace.competition.version,
+                      ai: workspace.ai,
+                      busy,
+                      onCitation: showCitation,
+                      onCriterionChange: () => setCitation(null),
+                      onAnalyze: () => void runAnalysis(),
+                      onCancel: cancelAnalysis,
+                    }}
+                  />
                 </div>
               </div>
               <details className="history panel">

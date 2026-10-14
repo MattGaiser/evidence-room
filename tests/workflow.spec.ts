@@ -33,15 +33,12 @@ async function freshEntry(page: Page) {
   return detail;
 }
 async function score(page: Page) {
-  await page.getByRole('button', { name: /Score & recommend/ }).click();
-  for (const name of ['Test evidence', 'Cost & resources', 'Pilot delivery', 'Community benefit']) {
-    const criterion = page
-      .locator('.score-criterion')
-      .filter({ has: page.locator('summary', { hasText: name }) });
-    if ((await criterion.getAttribute('open')) === null) await criterion.locator('summary').click();
-    await criterion.getByRole('radio', { name: /2 — Preliminary/ }).check();
+  await page.getByRole('button', { name: /Review & score/ }).click();
+  for (const index of ['0', '1', '2', '3']) {
+    await page.getByLabel('Choose a criterion').selectOption(index);
+    await page.getByRole('radio', { name: /2.*Preliminary/ }).check();
   }
-  await page.getByRole('button', { name: '2 Recommendation', exact: true }).click();
+  await page.getByRole('button', { name: 'Continue to recommendation', exact: true }).click();
   await page
     .getByLabel('Your rationale')
     .fill(
@@ -62,7 +59,7 @@ test('source quotations reveal exact passages, preserve scores, and support repe
   await expect(page.locator('#passage-p2 mark')).toContainText('microbiological testing');
   await quote.click();
   await expect(page.locator('#passage-p2')).toBeFocused();
-  await page.getByRole('button', { name: /Score & recommend/ }).click();
+  await page.getByRole('button', { name: '3 Recommendation', exact: true }).click();
   await expect(page.getByText('No scores entered yet', { exact: true })).toBeVisible();
 });
 
@@ -77,8 +74,7 @@ test('draft survives reload, finalization locks the version, and export contains
   expect(persisted.assessment.total).toBe(50);
   expect(persisted.assessment.finalized).toBe(false);
   await page.reload();
-  await page.getByRole('button', { name: /Score & recommend/ }).click();
-  await page.getByRole('button', { name: '2 Recommendation', exact: true }).click();
+  await page.getByRole('button', { name: '3 Recommendation', exact: true }).click();
   await expect(page.getByLabel('Your rationale')).toHaveValue(/field conditions/);
   await page.setViewportSize({ width: 1024, height: 600 });
   await page.getByRole('button', { name: 'Finalize', exact: true }).click();
@@ -113,6 +109,10 @@ test('draft survives reload, finalization locks the version, and export contains
     },
   });
   expect(denied.status()).toBe(409);
+  await page.getByRole('button', { name: /Review & score/ }).click();
+  await expect(page.getByRole('radio')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Save draft', exact: true })).toHaveCount(0);
+  await expect(page.getByText(/Recorded score: 2 of 4/)).toBeVisible();
 });
 
 test('new submission, cancellation, revision, and missing analysis give visible feedback', async ({
@@ -187,12 +187,11 @@ test('canceled and failed AI requests preserve the existing analysis and unsaved
     await route.fulfill({ response, json: value });
   });
   await openEntry(page);
-  await page.getByRole('button', { name: /Score & recommend/ }).click();
-  await page.getByRole('button', { name: '2 Recommendation', exact: true }).click();
+  await page.getByRole('button', { name: '3 Recommendation', exact: true }).click();
   await page
     .getByLabel('Your rationale')
     .fill('Keep this independent reasoning while the analysis request is canceled or fails.');
-  await page.getByRole('button', { name: /Review evidence/ }).click();
+  await page.getByRole('button', { name: /Review & score/ }).click();
   let release: (() => void) | undefined;
   const pending = new Promise<void>((resolve) => {
     release = resolve;
@@ -208,9 +207,9 @@ test('canceled and failed AI requests preserve the existing analysis and unsaved
   await page.getByRole('button', { name: 'Cancel analysis', exact: true }).click();
   release?.();
   await expect(page.locator('.analysis-source')).toContainText('Example analysis');
-  await page.getByRole('button', { name: /Score & recommend/ }).click();
+  await page.getByRole('button', { name: '3 Recommendation', exact: true }).click();
   await expect(page.getByLabel('Your rationale')).toHaveValue(/Keep this independent/);
-  await page.getByRole('button', { name: /Review evidence/ }).click();
+  await page.getByRole('button', { name: /Review & score/ }).click();
   await page.unroute('**/analysis');
   await page.route('**/analysis', (route) =>
     route.fulfill({
@@ -251,11 +250,11 @@ test('pending scorecard save locks inputs and prevents context or analysis races
   await page.getByRole('button', { name: /Commons Water Lab/ }).click();
   await expect(page.getByRole('heading', { name: entry.entry.title })).toBeVisible();
   await expect(page.locator('.toast')).toContainText('Wait for the scorecard save');
-  await page.getByRole('button', { name: /Review evidence/ }).click();
+  await page.getByRole('button', { name: /Review & score/ }).click();
   await page.getByRole('button', { name: 'Run AI analysis', exact: true }).click();
   await expect(page.locator('.toast')).toContainText('before running an analysis');
   release();
-  await page.getByRole('button', { name: /Score & recommend/ }).click();
+  await page.getByRole('button', { name: '3 Recommendation', exact: true }).click();
   await expect(page.getByText('Draft saved on this device', { exact: true })).toBeVisible();
   await expect(page.getByLabel('Your rationale')).toBeEnabled();
 });
@@ -282,15 +281,19 @@ test('analysis preserves scores, requires a fresh confirmation, and blocks overl
     await pending;
     await route.fulfill({ json: detail });
   });
-  await page.getByRole('button', { name: /Review evidence/ }).click();
+  await page.getByRole('button', { name: /Review & score/ }).click();
   await page.getByRole('button', { name: 'Run AI analysis', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Add submission', exact: true })).toBeDisabled();
-  await page.getByRole('button', { name: /Score & recommend/ }).click();
+  await page.getByRole('button', { name: '3 Recommendation', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Save draft', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: /Review & score/ }).click();
+  await page.getByLabel('Choose a criterion').selectOption('1');
+  await page.getByRole('radio', { name: /3.*Measured/ }).check();
   release();
   await expect(page.locator('.analysis-source')).toContainText('AI analysis');
-  await page.getByRole('button', { name: /Score & recommend/ }).click();
+  await page.getByRole('button', { name: '3 Recommendation', exact: true }).click();
   await expect(page.getByLabel('Your rationale')).toHaveValue(/field conditions/);
+  await expect(page.getByLabel('Your criterion scores')).toContainText('3 / 4: Measured');
   await expect(page.getByRole('checkbox', { name: /independent assessment/ })).not.toBeChecked();
   await expect(page.getByRole('button', { name: 'Finalize', exact: true })).toBeDisabled();
 });
@@ -407,12 +410,11 @@ for (const width of [390, 1440]) {
     const bounds = await page.locator('.review-workspace').boundingBox();
     expect(bounds?.x).toBeLessThan(50);
     expect(bounds?.width).toBeGreaterThan(width - 90);
-    await page.getByRole('button', { name: /Score & recommend/ }).click();
     await page
-      .locator('#score-criterion-evidence')
+      .locator('.criterion-score')
       .getByRole('radio', { name: /2 — Preliminary/ })
       .check();
-    await page.getByRole('button', { name: '2 Recommendation', exact: true }).click();
+    await page.getByRole('button', { name: '3 Recommendation', exact: true }).click();
     await page
       .getByLabel('Your rationale')
       .fill('Keep this reasoning while checking the submission queue.');
@@ -424,9 +426,9 @@ for (const width of [390, 1440]) {
     await expect(page.getByLabel('Your rationale')).toHaveValue(/Keep this reasoning/);
     await page.getByRole('button', { name: 'Hide review queue' }).click();
     await expect(page.getByRole('button', { name: 'Show review queue' })).toBeFocused();
-    await page.getByRole('button', { name: 'Back to scores', exact: true }).click();
+    await page.getByRole('button', { name: 'Edit Test evidence score', exact: true }).click();
     await expect(
-      page.locator('#score-criterion-evidence').getByRole('radio', { name: /2 — Preliminary/ }),
+      page.locator('.criterion-score').getByRole('radio', { name: /2 — Preliminary/ }),
     ).toBeChecked();
   });
 
@@ -450,43 +452,45 @@ for (const width of [390, 1440]) {
     await page.getByLabel('Choose a criterion').selectOption('3');
     await expect(page.locator('mark')).toHaveCount(0);
     await quote.click();
-    await page.getByRole('button', { name: 'Continue to your assessment', exact: true }).click();
+    await page.getByRole('button', { name: 'Continue to recommendation', exact: true }).click();
     await expect(page.locator('mark')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Back to finding', exact: true })).toHaveCount(0);
   });
 }
 
-test('scoring reveals the next section without disrupting radio keyboard navigation', async ({
+test('scores are entered beside evidence and summarized without losing keyboard control', async ({
   page,
 }) => {
-  await openEntry(page);
-  await page.getByRole('button', { name: /Score & recommend/ }).click();
-  const sections = page.locator('.score-criterion');
-  await expect(sections.nth(1).locator('summary')).toContainText('Choose score');
-  await expect(sections.nth(1)).not.toHaveAttribute('open');
-  const evidence = sections.nth(0);
-  await evidence.getByRole('radio', { name: /2 — Preliminary/ }).check();
-  await expect(sections.nth(1)).toHaveAttribute('open');
-  await expect(evidence).toHaveAttribute('open');
-  await expect(evidence.locator('.selected-score')).toContainText('2 of 4 — Preliminary evidence');
-  await evidence.getByRole('radio', { name: /2 — Preliminary/ }).focus();
+  const entry = await freshEntry(page);
+  await page.getByRole('button', { name: /Review & score/ }).click();
+  await expect(page.getByRole('heading', { name: 'Test evidence', exact: true })).toBeVisible();
+  await page.getByRole('radio', { name: /0.*Not addressed/ }).check();
+  await page.getByRole('radio', { name: /0.*Not addressed/ }).focus();
   await page.keyboard.press('ArrowRight');
-  await expect(evidence.getByRole('radio', { name: /3 — Measured/ })).toBeChecked();
-  await expect(evidence.getByRole('radio', { name: /3 — Measured/ })).toBeFocused();
-  await sections
-    .nth(1)
-    .getByRole('radio', { name: /2 — Preliminary/ })
-    .check();
-  await expect(sections.nth(2)).toHaveAttribute('open');
-  await sections
-    .nth(2)
-    .getByRole('radio', { name: /1 — Claim only/ })
-    .check();
-  await expect(sections.nth(3)).toHaveAttribute('open');
-  await sections
-    .nth(3)
-    .getByRole('radio', { name: /2 — Preliminary/ })
-    .check();
+  await expect(page.getByRole('radio', { name: /1.*Claim only/ })).toBeFocused();
+  await expect(page.getByRole('radio', { name: /1.*Claim only/ })).toBeChecked();
+  await expect(page.getByLabel('Choose a criterion')).toHaveValue('0');
+  await page.getByRole('radio', { name: /0.*Not addressed/ }).check();
+  for (const index of ['1', '2', '3']) {
+    await page.getByRole('button', { name: 'Next criterion', exact: true }).click();
+    await expect(page.getByLabel('Choose a criterion')).toHaveValue(index);
+    await page.getByRole('radio', { name: /2.*Preliminary/ }).check();
+  }
+  await expect(page.getByText('4 of 4 criteria scored', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Continue to recommendation', exact: true }).click();
+  await expect(page.getByLabel('Your criterion scores')).toContainText('0 / 4: Not addressed');
+  await page
+    .getByLabel('Your rationale')
+    .fill('Keep this rationale while editing a criterion beside its evidence.');
+  await page.getByRole('button', { name: 'Edit Cost & resources score', exact: true }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Your score for Cost & resources' }),
+  ).toBeFocused();
+  await expect(page.getByRole('heading', { name: 'Cost & resources', exact: true })).toBeVisible();
+  await expect(page.getByRole('radio', { name: /2.*Preliminary/ })).toBeChecked();
+  await page.getByRole('radio', { name: /3.*Measured/ }).check();
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+  await expect(page.getByText('Draft saved on this device', { exact: true })).toBeVisible();
   expect(
     (
       await new AxeBuilder({ page })
@@ -494,9 +498,11 @@ test('scoring reveals the next section without disrupting radio keyboard navigat
         .analyze()
     ).violations,
   ).toEqual([]);
-  await page.getByRole('button', { name: 'Next: recommendation', exact: true }).click();
-  await page.getByRole('button', { name: 'Back to scores', exact: true }).click();
-  await expect(evidence.getByRole('radio', { name: /3 — Measured/ })).toBeChecked();
+  await page.getByRole('button', { name: '3 Recommendation', exact: true }).click();
+  await expect(page.getByLabel('Your rationale')).toHaveValue(/Keep this rationale/);
+  const persisted = await (await page.request.get(`/api/entries/${entry.entry.id}`)).json();
+  expect(persisted.assessment.scores.evidence).toBe(0);
+  expect(persisted.assessment.scores.resources).toBe(3);
 });
 
 test('criterion pagination supports keyboard focus, direct selection, and backtracking', async ({
@@ -537,20 +543,49 @@ test('criterion pagination supports keyboard focus, direct selection, and backtr
   await page.getByLabel('Choose a criterion').selectOption('0');
   await page.locator('.evidence-quote').first().click();
   await expect(page.locator('#passage-p2 mark')).toBeVisible();
-  await page.getByRole('button', { name: /Score & recommend/ }).click();
-  await page.getByRole('button', { name: 'Next: recommendation', exact: true }).click();
+  await page.getByRole('button', { name: '3 Recommendation', exact: true }).click();
   await page
     .getByLabel('Your rationale')
     .fill('Keep this reasoning while returning to an unfinished score.');
   await page.getByRole('button', { name: 'Complete missing scores', exact: true }).click();
-  await expect(page.locator('#score-criterion-evidence input').first()).toBeFocused();
+  await expect(page.getByRole('heading', { name: 'Your score for Test evidence' })).toBeFocused();
   await page.getByRole('radio', { name: /2 — Preliminary/ }).check();
-  await page.getByRole('button', { name: '2 Recommendation', exact: true }).click();
+  await page.getByRole('button', { name: '3 Recommendation', exact: true }).click();
   await expect(page.getByLabel('Your rationale')).toHaveValue(/Keep this reasoning/);
-  await page.getByRole('button', { name: 'Back to scores', exact: true }).click();
+  await page.getByRole('button', { name: 'Edit Test evidence score', exact: true }).click();
   await expect(
-    page.locator('#score-criterion-evidence').getByRole('radio', { name: /2 — Preliminary/ }),
+    page.locator('.criterion-score').getByRole('radio', { name: /2 — Preliminary/ }),
   ).toBeChecked();
+});
+
+test('partial inline drafts survive reload and missing scores return to their evidence', async ({
+  page,
+}) => {
+  const entry = await freshEntry(page);
+  await page.getByRole('button', { name: /Review & score/ }).click();
+  await expect(page.getByText('No analysis for this version yet.', { exact: true })).toBeVisible();
+  await page.getByRole('radio', { name: /0.*Not addressed/ }).check();
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+  await expect(page.getByText('Draft saved on this device', { exact: true })).toBeVisible();
+  const saved = await (await page.request.get(`/api/entries/${entry.entry.id}`)).json();
+  expect(saved.assessment.scores.evidence).toBe(0);
+  expect(saved.assessment.scores.resources).toBeNull();
+  await page.reload();
+  await page.getByRole('button', { name: /Review & score/ }).click();
+  await expect(page.getByRole('radio', { name: /0.*Not addressed/ })).toBeChecked();
+  await page.getByRole('button', { name: '3 Recommendation', exact: true }).click();
+  await page.getByRole('button', { name: 'Complete missing scores', exact: true }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Your score for Cost & resources' }),
+  ).toBeFocused();
+  await expect(page.getByLabel('Choose a criterion')).toHaveValue('1');
+  await page.getByRole('radio', { name: /2.*Preliminary/ }).check();
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+  await expect(page.getByText('Draft saved on this device', { exact: true })).toBeVisible();
+  const updated = await (await page.request.get(`/api/entries/${entry.entry.id}`)).json();
+  expect(updated.assessment.version).toBe(2);
+  expect(updated.assessment.scores.evidence).toBe(0);
+  expect(updated.assessment.scores.resources).toBe(2);
 });
 
 test('status badges and yellow quotations have AA text contrast and non-color labels', async ({
@@ -647,23 +682,22 @@ for (const width of [320, 1440])
       ).violations,
     ).toEqual([]);
     await start.click();
-    await expect(page.getByRole('heading', { name: 'Evidence review' })).toBeFocused();
-    await expect(page.getByRole('heading', { name: 'Evidence review' })).toBeInViewport({
+    await expect(page.getByRole('heading', { name: 'Review and score' })).toBeFocused();
+    await expect(page.getByRole('heading', { name: 'Review and score' })).toBeInViewport({
       ratio: 1,
     });
     await page.locator('.evidence-quote').first().click();
     await expect(page.locator('#passage-p2 mark')).toBeVisible();
     await page.getByLabel('Choose a criterion').selectOption('3');
-    await page.getByRole('button', { name: 'Continue to your assessment' }).click();
+    await page.getByRole('button', { name: 'Continue to recommendation' }).click();
     await expect(
-      page.getByRole('heading', { name: 'Score and recommend', exact: true }),
+      page.getByRole('heading', { name: 'Your recommendation', exact: true }),
     ).toBeFocused();
     await expect(
-      page.getByRole('heading', { name: 'Score and recommend', exact: true }),
+      page.getByRole('heading', { name: 'Your recommendation', exact: true }),
     ).toBeInViewport({
       ratio: 1,
     });
-    await page.getByRole('button', { name: '2 Recommendation', exact: true }).click();
     expect(
       (
         await new AxeBuilder({ page })

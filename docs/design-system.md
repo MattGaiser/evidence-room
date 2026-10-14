@@ -35,19 +35,19 @@ These text/background pairs exceed WCAG AA's 4.5:1 threshold for normal text. Co
 | `SubmissionQueue`   | Queue display and filtering controls                                            |
 | `SubmissionReader`  | Original passages and exact citation highlights                                 |
 | `EvidenceReview`    | Findings, source links, provenance disclosure, analysis controls                |
-| `Scorecard`         | Unsaved scores and reasoning, draft/final actions                               |
+| `ReviewProcess`     | Shared draft, criterion selection, draft/final actions                          |
 | `Dialog` / `Notice` | Focus restoration and accessible feedback                                       |
 
-The scorecard remains mounted across workflow steps so navigation preserves typed work. Passage IDs remain stable within a submission version. Workspace responses are applied only if no newer read or accepted mutation has superseded them.
+ReviewProcess remains mounted across workflow steps and owns one draft, so navigation preserves typed work. CriterionScore renders the current score controls and shared scale. Passage IDs remain stable within a submission version. Workspace responses are applied only if no newer read or accepted mutation has superseded them.
 
-The queue closes when evidence review or scoring begins, reclaiming its entire column. The labeled Show review queue control reopens it and focuses the filter without resetting the current review, filter, or unsaved assessment. Score summaries use a chevron and Choose score prompt. Selecting a score reveals the next unscored section while leaving the current section and keyboard focus intact. The selected scale meaning remains visible beneath its radio group.
+The queue closes when evidence review or scoring begins, reclaiming its entire column. The labeled Show review queue control reopens it and focuses the filter without resetting the current review, filter, or unsaved assessment. Each criterion displays its evidence and human score together. Selecting a score keeps the current criterion and keyboard focus intact; Next criterion is explicit. The recommendation summarizes all scores, with Edit score returning to the corresponding evidence. The selected scale meaning remains visible beneath its radio group.
 
 ## Copy and layout rules
 
 - Give the first screen one clear next action. Keep the optional walkthrough in one place, with one card at a time.
 - Use concrete action labels and explanations. Keep sample-data and affiliation context in the README; do not repeat it around the workspace. Preserve accurate analysis-source labels and actionable reasons for unavailable controls.
 - Place short metadata and related actions on the same row where they fit. Keep original text beside evidence and scoring on desktop; allow normal document flow on phones.
-- Show one evidence criterion per page, with Previous/Next, a direct selector, and a page count. Separate scores from recommendation details; preserve inputs across pages. Use native accordions for scoring and secondary detail. Keep every filter available at the widths where its results are visible.
+- Show one evidence criterion per page, with Previous/Next, a direct selector, and a page count. Place score controls beside the current evidence and preserve inputs across criteria. Keep the final recommendation focused on the score summary and decision. Use native accordions for secondary detail. Keep every filter available at the widths where its results are visible.
 - Preserve pending, success, failure, cancellation, and unsaved states. Page buttons focus the visible destination heading; native selectors retain keyboard focus. Finalization focuses its recorded result.
 - Give source inspection a return path to the originating quotation. Clear the highlighted passage when changing criteria or workflow steps.
 - Check keyboard focus, contrast, narrow reflow, enlarged text, short screens, and access to the bottom of sticky panels after layout changes.

@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
+import type { ReactNode } from 'react';
+import CriterionScore from './CriterionScore';
 import {
   ArrowLeft,
   ArrowRight,
@@ -38,6 +40,12 @@ export default function EvidenceReview({
   onAnalyze,
   onCancel,
   onContinue,
+  criterionIndex,
+  onCriterionIndex,
+  scores,
+  onScore,
+  scoreDisabled,
+  saveControls,
 }: {
   detail: Detail;
   criteria: Criterion[];
@@ -49,9 +57,16 @@ export default function EvidenceReview({
   onAnalyze: () => void;
   onCancel: () => void;
   onContinue: () => void;
+  criterionIndex: number;
+  onCriterionIndex: (index: number) => void;
+  scores: Record<string, number | null>;
+  onScore: (id: string, value: number) => void;
+  scoreDisabled: boolean;
+  saveControls: ReactNode;
 }) {
   const review = detail.review;
-  const [page, setPage] = useState(0);
+  const page = criterionIndex;
+  const setPage = onCriterionIndex;
   const criterion = criteria[page];
   const finding = review?.content.criteria.find((item) => item.criterionId === criterion.id);
   const criterionHeading = useRef<HTMLHeadingElement>(null);
@@ -76,7 +91,7 @@ export default function EvidenceReview({
       previousReview.current = review?.id;
       setPage(0);
     }
-  }, [review?.id]);
+  }, [review?.id, setPage]);
   const unavailable = detail.assessment?.finalized
     ? 'Submit a revision to start a new review.'
     : !ai.available
@@ -89,149 +104,165 @@ export default function EvidenceReview({
       <div className="panel-heading">
         <div>
           <h3 id="analysis-title" tabIndex={-1}>
-            Evidence review
+            Review and score
           </h3>
         </div>
         <span className="version-chip">Rubric v{rubricVersion}</span>
       </div>
-      {review ? (
-        <>
-          <div className="analysis-summary">
-            <span className="analysis-source">
-              {review.source === 'example' ? 'Example analysis' : 'AI analysis'}
-              <span>Submission v{review.submissionRevision}</span>
-            </span>
-            <details className="review-overview">
-              <summary>Submission summary</summary>
-              <p>{review.content.summary}</p>
-            </details>
-          </div>
-          <label className="criterion-jump">
-            <span>Choose a criterion</span>
-            <select
-              value={page}
-              onChange={(event) => {
-                focusCriterion.current = false;
-                onCriterionChange();
-                setPage(Number(event.target.value));
-              }}
-              aria-controls="criterion-panel"
-            >
-              {criteria.map((item, index) => (
-                <option key={item.id} value={index}>
-                  {index + 1}. {item.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          {finding && (
-            <section className="finding" id="criterion-panel" aria-labelledby="criterion-title">
-              <div className="finding-heading">
-                <h4 id="criterion-title" tabIndex={-1} ref={criterionHeading}>
-                  {criterion.name}
-                </h4>
-                <CoverageBadge status={finding.status} />
-              </div>
-              <div className="finding-content">
-                <p>{finding.finding}</p>
-                {finding.evidence.map((cite) => (
-                  <button
-                    type="button"
-                    className="evidence-quote"
-                    key={cite.paragraphId + cite.quote}
-                    onClick={(event) => onCitation(cite, event.currentTarget)}
-                  >
-                    <span>“{cite.quote}”</span>
-                    <small>
-                      Passage {cite.paragraphId.slice(1)}
-                      <ArrowLeft size={13} />
-                    </small>
-                  </button>
-                ))}
-                {finding.question && (
-                  <div className="clarification">
-                    <strong>Ask the team</strong>
-                    <p>{finding.question}</p>
-                  </div>
-                )}
-              </div>
-            </section>
-          )}
-          <nav className="criterion-pager" aria-label="Evidence criteria">
-            <button
-              type="button"
-              className="button secondary"
-              disabled={page === 0}
-              onClick={() => changePage(page - 1)}
-            >
-              <ArrowLeft size={16} />
-              Previous
-            </button>
-            <span role="status" aria-live="polite">
-              {page + 1} of {criteria.length}
-            </span>
-            <button
-              type="button"
-              className="button primary"
-              onClick={page === criteria.length - 1 ? onContinue : () => changePage(page + 1)}
-            >
-              {page === criteria.length - 1 ? 'Continue to your assessment' : 'Next criterion'}
-              <ArrowRight size={16} />
-            </button>
-          </nav>
-          {review.content.flags.length > 0 && (
-            <div className="review-flags">
-              <h4>Items for attention</h4>
-              {review.content.flags.map((flag) => (
-                <div key={flag.paragraphId + flag.quote}>
-                  <p>{flag.message}</p>
-                  <button
-                    type="button"
-                    className="text-button"
-                    onClick={(event) =>
-                      onCitation(
-                        {
-                          paragraphId: flag.paragraphId,
-                          quote: flag.quote,
-                        },
-                        event.currentTarget,
-                      )
-                    }
-                  >
-                    View flagged passage
-                    <ArrowLeft size={13} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-          <details className="analysis-provenance">
-            <summary>Analysis details</summary>
-            <dl>
-              <div>
-                <dt>Source</dt>
-                <dd>{review.source === 'example' ? 'Authored illustration' : review.model}</dd>
-              </div>
-              <div>
-                <dt>Prompt</dt>
-                <dd>{review.promptVersion}</dd>
-              </div>
-              <div>
-                <dt>Saved</dt>
-                <dd>{formatDate(review.createdAt)}</dd>
-              </div>
-            </dl>
+      {review && (
+        <div className="analysis-summary">
+          <span className="analysis-source">
+            {review.source === 'example' ? 'Example analysis' : 'AI analysis'}
+            <span>Submission v{review.submissionRevision}</span>
+          </span>
+          <details className="review-overview">
+            <summary>Submission summary</summary>
+            <p>{review.content.summary}</p>
           </details>
-        </>
-      ) : (
+        </div>
+      )}
+      {!review && (
         <div className="empty-analysis">
-          <Search size={32} />
+          <Search size={28} />
           <h4>No analysis for this version yet.</h4>
           <p>
-            Run an AI analysis to map the submission to the rubric. You can also read the original
-            and score it manually.
+            Read the source passages and score each criterion below. You can also run an AI analysis
+            to find supporting passages and open questions.
           </p>
         </div>
+      )}
+      <label className="criterion-jump">
+        <span>Choose a criterion</span>
+        <select
+          value={page}
+          onChange={(event) => {
+            focusCriterion.current = false;
+            onCriterionChange();
+            setPage(Number(event.target.value));
+          }}
+          aria-controls="criterion-panel"
+        >
+          {criteria.map((item, index) => (
+            <option key={item.id} value={index}>
+              {index + 1}. {item.name}{' '}
+              {scores[item.id] === null ? '(not scored)' : `(${scores[item.id]}/4)`}
+            </option>
+          ))}
+        </select>
+      </label>
+      <section className="finding" id="criterion-panel" aria-labelledby="criterion-title">
+        <div className="finding-heading">
+          <h4 id="criterion-title" tabIndex={-1} ref={criterionHeading}>
+            {criterion.name}
+          </h4>
+          {finding && <CoverageBadge status={finding.status} />}
+        </div>
+        {finding && (
+          <div className="finding-content">
+            <p>{finding.finding}</p>
+            {finding.evidence.map((cite) => (
+              <button
+                type="button"
+                className="evidence-quote"
+                key={cite.paragraphId + cite.quote}
+                onClick={(event) => onCitation(cite, event.currentTarget)}
+              >
+                <span>“{cite.quote}”</span>
+                <small>
+                  Passage {cite.paragraphId.slice(1)}
+                  <ArrowLeft size={13} />
+                </small>
+              </button>
+            ))}
+            {finding.question && (
+              <div className="clarification">
+                <strong>Ask the team</strong>
+                <p>{finding.question}</p>
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+      <CriterionScore
+        criterion={criterion}
+        score={scores[criterion.id]}
+        disabled={scoreDisabled}
+        finalized={detail.assessment?.finalized === true}
+        onScore={(value) => onScore(criterion.id, value)}
+      />
+      <div className="criterion-save">
+        {saveControls}
+        <p className="score-progress" role="status">
+          {criteria.filter((item) => scores[item.id] !== null).length} of {criteria.length} criteria
+          scored
+        </p>
+      </div>
+      <nav className="criterion-pager" aria-label="Evidence criteria">
+        <button
+          type="button"
+          className="button secondary"
+          disabled={page === 0}
+          onClick={() => changePage(page - 1)}
+        >
+          <ArrowLeft size={16} />
+          Previous
+        </button>
+        <span role="status" aria-live="polite">
+          {page + 1} of {criteria.length}
+        </span>
+        <button
+          type="button"
+          className="button primary"
+          onClick={page === criteria.length - 1 ? onContinue : () => changePage(page + 1)}
+        >
+          {page === criteria.length - 1 ? 'Continue to recommendation' : 'Next criterion'}
+          <ArrowRight size={16} />
+        </button>
+      </nav>
+      {review && review.content.flags.length > 0 && (
+        <div className="review-flags">
+          <h4>Items for attention</h4>
+          {review.content.flags.map((flag) => (
+            <div key={flag.paragraphId + flag.quote}>
+              <p>{flag.message}</p>
+              <button
+                type="button"
+                className="text-button"
+                onClick={(event) =>
+                  onCitation(
+                    {
+                      paragraphId: flag.paragraphId,
+                      quote: flag.quote,
+                    },
+                    event.currentTarget,
+                  )
+                }
+              >
+                View flagged passage
+                <ArrowLeft size={13} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      {review && (
+        <details className="analysis-provenance">
+          <summary>Analysis details</summary>
+          <dl>
+            <div>
+              <dt>Source</dt>
+              <dd>{review.source === 'example' ? 'Authored illustration' : review.model}</dd>
+            </div>
+            <div>
+              <dt>Prompt</dt>
+              <dd>{review.promptVersion}</dd>
+            </div>
+            <div>
+              <dt>Saved</dt>
+              <dd>{formatDate(review.createdAt)}</dd>
+            </div>
+          </dl>
+        </details>
       )}
       <div className="analysis-actions">
         {busy ? (
@@ -257,12 +288,6 @@ export default function EvidenceReview({
             </button>
             {unavailable && <p className="field-help">{unavailable}</p>}
           </>
-        )}
-        {!review && (
-          <button type="button" className="button primary full" onClick={onContinue}>
-            Continue to your assessment
-            <ArrowRight size={16} />
-          </button>
         )}
       </div>
     </section>
