@@ -12,17 +12,22 @@ export default function CriterionScore({
   criterion,
   score,
   disabled,
+  invalid,
   finalized,
   onScore,
 }: {
   criterion: Criterion;
   score: number | null;
   disabled: boolean;
+  invalid: boolean;
   finalized: boolean;
   onScore: (score: number) => void;
 }) {
   return (
-    <section className="criterion-score" aria-labelledby="criterion-score-title">
+    <section
+      className={`criterion-score ${invalid ? 'invalid-field' : ''}`}
+      aria-labelledby="criterion-score-title"
+    >
       <div className="criterion-score-heading">
         <h4 id="criterion-score-title" tabIndex={-1}>
           Your score for {criterion.name}
@@ -36,7 +41,11 @@ export default function CriterionScore({
         </p>
       ) : (
         <>
-          <fieldset className="score-options">
+          <fieldset
+            className="score-options"
+            aria-invalid={invalid || undefined}
+            aria-describedby="current-score-help"
+          >
             <legend className="visually-hidden">{criterion.name} score</legend>
             {scoreLabels.map((label, value) => (
               <label key={label} className={score === value ? 'selected' : ''}>
@@ -55,7 +64,7 @@ export default function CriterionScore({
               </label>
             ))}
           </fieldset>
-          <p className="selected-score" role="status">
+          <p className="selected-score" id="current-score-help" role="status">
             {score === null
               ? 'Choose a score from 0 to 4, then continue to the next criterion.'
               : `${score} of 4 — ${scoreLabels[score]}`}

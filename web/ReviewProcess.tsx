@@ -5,6 +5,7 @@ import {
   ArrowRight,
   Check,
   CircleCheck,
+  CircleAlert,
   Download,
   LoaderCircle,
   LockKeyhole,
@@ -17,6 +18,8 @@ import EvidenceReview from './EvidenceReview';
 import { scoreLabels } from './CriterionScore';
 import useAutosave from './useAutosave';
 import type { FlushDraft } from './useAutosave';
+import ActionButton from './ActionButton';
+import { focusPanelHeading } from './focus';
 
 export default function ReviewProcess({
   detail,
@@ -57,6 +60,7 @@ export default function ReviewProcess({
     | 'scores'
     | 'onScore'
     | 'scoreDisabled'
+    | 'scoreInvalid'
     | 'saveControls'
   >;
   onReview: (focusId?: string) => void;
@@ -76,6 +80,9 @@ export default function ReviewProcess({
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState('');
   const [criterionIndex, setCriterionIndex] = useState(0);
+  const [explaining, setExplaining] = useState(false);
+  const [attempted, setAttempted] = useState(false);
+  const showValidation = explaining || attempted;
   const editCriterion = (id: string) => {
     setCriterionIndex(criteria.findIndex((criterion) => criterion.id === id));
     onReview('criterion-score-title');
@@ -102,6 +109,44 @@ export default function ReviewProcess({
     ? criteria.reduce((n, c) => n + ((scores[c.id] ?? 0) / 4) * c.weight, 0)
     : null;
   const ready = complete && rationale.trim().length >= 40 && outcome !== '' && confirmed;
+  const rationaleMissing = rationale.trim().length < 40;
+  const requirements = [
+    ...missingScores.map((criterion) => ({
+      id: `score-${criterion.id}`,
+      text: `Score ${criterion.name}.`,
+      focus: () => editCriterion(criterion.id),
+    })),
+    ...(rationaleMissing
+      ? [
+          {
+            id: 'rationale',
+            text:
+              rationale.trim().length === 0
+                ? 'Write your rationale (at least 40 characters).'
+                : `Add ${40 - rationale.trim().length} more ${rationale.trim().length === 39 ? 'character' : 'characters'} to your rationale.`,
+            focus: () => focusPanelHeading(document.getElementById('assessment-rationale')),
+          },
+        ]
+      : []),
+    ...(outcome === ''
+      ? [
+          {
+            id: 'outcome',
+            text: 'Choose a recommendation.',
+            focus: () => focusPanelHeading(document.getElementById('recommendation')),
+          },
+        ]
+      : []),
+    ...(!confirmed
+      ? [
+          {
+            id: 'confirmation',
+            text: 'Confirm that you made an independent assessment.',
+            focus: () => focusPanelHeading(document.getElementById('independent-review')),
+          },
+        ]
+      : []),
+  ];
   const finalRequest = useRef<Promise<boolean> | null>(null);
   const registerPersistence = useCallback(
     (flush: FlushDraft | null) => {
@@ -237,6 +282,7 @@ export default function ReviewProcess({
             changed();
           }}
           scoreDisabled={finalizing}
+          scoreInvalid={showValidation}
           saveControls={finalized || active !== 'evidence' ? null : draftControls}
           onContinue={onRecommend}
         />
@@ -287,7 +333,12 @@ export default function ReviewProcess({
               </p>
               <ul className="score-summary" aria-label="Your criterion scores">
                 {criteria.map((criterion) => (
-                  <li key={criterion.id}>
+                  <li
+                    key={criterion.id}
+                    data-missing={
+                      showValidation && scores[criterion.id] === null ? 'true' : undefined
+                    }
+                  >
                     <div>
                       <strong>{criterion.name}</strong>
                       <small>{criterion.weight}% of total</small>
@@ -328,9 +379,13 @@ export default function ReviewProcess({
                   </button>
                 </div>
               )}
-              <label className="field">
+              <label
+                className={`field ${showValidation && rationaleMissing ? 'invalid-field' : ''}`}
+              >
                 <span>Your rationale</span>
                 <textarea
+                  id="assessment-rationale"
+                  aria-invalid={(showValidation && rationaleMissing) || undefined}
                   disabled={finalizing}
                   rows={4}
                   maxLength={4000}
@@ -340,17 +395,25 @@ export default function ReviewProcess({
                     changed();
                   }}
                   placeholder="Explain how the evidence and its limitations support your recommendation."
-                  aria-describedby="rationale-help"
+                  aria-describedby={
+                    showValidation && rationaleMissing
+                      ? 'rationale-help requirement-rationale'
+                      : 'rationale-help'
+                  }
                 />
               </label>
               <p id="rationale-help" className="field-help">
                 At least 40 characters to finalize.
               </p>
-              <div className="field">
+              <div className={`field ${showValidation && outcome === '' ? 'invalid-field' : ''}`}>
                 <label htmlFor="recommendation">Recommendation</label>
                 <select
                   disabled={finalizing}
                   id="recommendation"
+                  aria-invalid={(showValidation && outcome === '') || undefined}
+                  aria-describedby={
+                    showValidation && outcome === '' ? 'requirement-outcome' : undefined
+                  }
                   value={outcome}
                   onChange={(e) => {
                     setOutcome(e.target.value);
@@ -365,9 +428,16 @@ export default function ReviewProcess({
                   ))}
                 </select>
               </div>
-              <label className="confirmation">
+              <label
+                className={`confirmation ${showValidation && !confirmed ? 'invalid-field' : ''}`}
+              >
                 <input
                   type="checkbox"
+                  id="independent-review"
+                  aria-invalid={(showValidation && !confirmed) || undefined}
+                  aria-describedby={
+                    showValidation && !confirmed ? 'requirement-confirmation' : undefined
+                  }
                   disabled={finalizing}
                   checked={confirmed}
                   onChange={(e) => {
@@ -379,23 +449,67 @@ export default function ReviewProcess({
               </label>
               {active === 'decision' && draftControls}
               <div className="score-actions">
-                <button
-                  type="button"
+                {showValidation && (
+                  <div className="visually-hidden">
+                    {requirements.map((item) => (
+                      <span key={item.id} id={'requirement-' + item.id}>
+                        {item.text}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <ActionButton
                   className="button primary full"
                   disabled={
                     finalizing || transitionPending || analysisRunning || !!autosave.error || !ready
                   }
                   onClick={() => setConfirming(true)}
+                  onExplainChange={setExplaining}
+                  onBlocked={() => {
+                    setAttempted(true);
+                    if (!finalizing && !transitionPending && !analysisRunning && !autosave.error)
+                      requirements[0]?.focus();
+                  }}
+                  explanation={
+                    <>
+                      {finalizing || transitionPending ? (
+                        <p>Wait for the current save to finish.</p>
+                      ) : analysisRunning ? (
+                        <p>Wait for the analysis to finish. You can keep editing.</p>
+                      ) : autosave.error ? (
+                        <p>Resolve the save error above before finalizing.</p>
+                      ) : null}
+                      {requirements.length > 0 && (
+                        <div className="missing-requirements">
+                          <p>
+                            <CircleAlert size={16} aria-hidden="true" />
+                            Complete these before finalizing:
+                          </p>
+                          <ul>
+                            {requirements.map((item) => (
+                              <li key={item.id}>
+                                <button
+                                  type="button"
+                                  className="text-button"
+                                  onClick={() => {
+                                    setAttempted(true);
+                                    item.focus();
+                                  }}
+                                >
+                                  {item.text}
+                                  <ArrowLeft size={14} aria-hidden="true" />
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </>
+                  }
                 >
                   Finalize
                   <ArrowRight size={16} />
-                </button>
-                {!ready && (
-                  <p className="field-help">
-                    To finalize: complete four scores, a rationale, a recommendation, and the
-                    confirmation.
-                  </p>
-                )}
+                </ActionButton>
               </div>
             </>
           )}

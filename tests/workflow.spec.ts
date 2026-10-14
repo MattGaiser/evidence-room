@@ -965,6 +965,143 @@ for (const width of [320, 1440])
     }
   });
 
+test('unavailable Finalize highlights only missing fields and provides direct fixes', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await freshEntry(page);
+  await page.getByRole('button', { name: /Review & score/ }).click();
+  await page.getByRole('radio', { name: /0.*Not addressed/ }).check();
+  await page.getByRole('button', { name: '3 Recommendation', exact: true }).click();
+  await page.getByLabel('Your rationale').fill('x'.repeat(39));
+  const finalize = page.getByRole('button', { name: 'Finalize', exact: true });
+  await expect(finalize).toBeDisabled();
+  await expect(page.getByLabel('Your rationale')).not.toHaveAttribute('aria-invalid');
+  await finalize.scrollIntoViewIfNeeded();
+  const before = await finalize.boundingBox();
+  await finalize.hover();
+  const help = page.locator('.score-actions .action-reason');
+  await expect(help).toBeVisible();
+  await expect(help).toContainText('Add 1 more character to your rationale.');
+  await expect(page.locator('.score-summary li[data-missing=true]')).toHaveCount(3);
+  await expect(page.getByLabel('Your rationale')).toHaveAttribute('aria-invalid', 'true');
+  await expect(page.getByLabel('Recommendation', { exact: true })).toHaveAttribute(
+    'aria-invalid',
+    'true',
+  );
+  await expect(page.getByRole('checkbox', { name: /independent assessment/ })).toHaveAttribute(
+    'aria-invalid',
+    'true',
+  );
+  const after = await finalize.boundingBox();
+  expect(Math.abs((before?.y ?? 0) - (after?.y ?? 0))).toBeLessThan(1);
+  await help.hover();
+  await expect(help).toBeVisible();
+  expect(
+    (
+      await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+        .analyze()
+    ).violations,
+  ).toEqual([]);
+  await page.keyboard.press('Escape');
+  await expect(help).toBeHidden();
+  await expect(page.getByLabel('Your rationale')).not.toHaveAttribute('aria-invalid');
+  await finalize.focus();
+  await expect(help).toBeVisible();
+  await page.keyboard.press('Tab');
+  await expect(help.getByRole('button').first()).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(help).toBeHidden();
+  await expect(finalize).toBeFocused();
+  await expect(page.getByLabel('Your rationale')).not.toHaveAttribute('aria-invalid');
+  await page.getByLabel('Your rationale').focus();
+  await finalize.focus();
+  await help.getByRole('button', { name: /Add 1 more character to/ }).click();
+  await expect(page.getByLabel('Your rationale')).toBeFocused();
+  await page.getByLabel('Your rationale').fill('x'.repeat(40));
+  await expect(page.getByLabel('Your rationale')).not.toHaveAttribute('aria-invalid');
+  await finalize.focus();
+  await help.getByRole('button', { name: 'Choose a recommendation.' }).click();
+  await expect(page.getByLabel('Recommendation', { exact: true })).toBeFocused();
+  await page.getByLabel('Recommendation', { exact: true }).selectOption('clarify');
+  await finalize.focus();
+  await help.getByRole('button', { name: /Confirm that/ }).click();
+  await expect(page.getByRole('checkbox', { name: /independent assessment/ })).toBeFocused();
+  await page.getByRole('checkbox', { name: /independent assessment/ }).check();
+  await finalize.focus();
+  await help.getByRole('button', { name: 'Score Cost & resources.' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Your score for Cost & resources' }),
+  ).toBeFocused();
+  await expect(page.locator('.score-options')).toHaveAttribute('aria-invalid', 'true');
+  await page.getByRole('radio', { name: /2.*Preliminary/ }).check();
+  await expect(page.locator('.score-options')).not.toHaveAttribute('aria-invalid');
+});
+
+test('blocked activation guides incomplete reviews without recording on narrow screens', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const entry = await freshEntry(page);
+  let recorded = 0;
+  await page.route('**/assessment', async (route) => {
+    if (route.request().postDataJSON().finalize) recorded++;
+    await route.continue();
+  });
+  await page.getByRole('button', { name: '3 Recommendation', exact: true }).click();
+  const finalize = page.getByRole('button', { name: 'Finalize', exact: true });
+  await finalize.focus();
+  await expect(page.locator('.score-actions .action-reason')).toBeVisible();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('heading', { name: 'Your score for Test evidence' })).toBeFocused();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  expect(recorded).toBe(0);
+  await page.getByRole('radio', { name: /0.*Not addressed/ }).check();
+  await page.getByRole('button', { name: '3 Recommendation', exact: true }).click();
+  await finalize.click({ force: true });
+  await expect(
+    page.getByRole('heading', { name: 'Your score for Cost & resources' }),
+  ).toBeFocused();
+  await score(page);
+  await expect(finalize).toBeEnabled();
+  await expect(page.locator('[aria-invalid=true]')).toHaveCount(0);
+  await expect(page.locator('.score-actions .action-reason')).toBeHidden();
+  await finalize.click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.getByRole('button', { name: 'Keep editing', exact: true }).click();
+  expect(recorded).toBe(0);
+  await expect(page.getByText('All changes saved', { exact: true })).toBeVisible();
+  const saved = await (await page.request.get('/api/entries/' + entry.entry.id)).json();
+  expect(saved.assessment.finalized).toBe(false);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test('unavailable AI explains its configuration without marking scores invalid or making requests', async ({
+  page,
+}) => {
+  await freshEntry(page);
+  let attempts = 0;
+  await page.route('**/analysis', async (route) => {
+    attempts++;
+    await route.abort();
+  });
+  await page.getByRole('button', { name: /Review & score/ }).click();
+  const analyze = page.getByRole('button', { name: 'Run AI analysis', exact: true });
+  await analyze.focus();
+  await expect(analyze).toBeDisabled();
+  const help = page.locator('.analysis-actions .action-reason');
+  await expect(help).toContainText('AI analysis is off');
+  const background = await analyze.evaluate((element) => getComputedStyle(element).backgroundColor);
+  await analyze.hover();
+  await expect(analyze).toHaveCSS('background-color', background);
+  await page.keyboard.press('Enter');
+  expect(attempts).toBe(0);
+  await expect(page.locator('.score-options')).not.toHaveAttribute('aria-invalid');
+  await page.keyboard.press('Escape');
+  await expect(help).toBeHidden();
+});
+
 test('HTTP boundary rejects bad origins, unknown routes, invalid scores, and source exposure', async ({
   request,
 }) => {

@@ -128,14 +128,14 @@ svg {
   border-color: var(--brand);
   box-shadow: none;
 }
-.button.primary:hover:not(:disabled) {
+.button.primary:hover:not(:disabled):not([aria-disabled='true']) {
   background: var(--brand-hover);
 }
 .button.secondary {
   background: var(--surface);
   border-color: var(--line-strong);
 }
-.button.secondary:hover:not(:disabled) {
+.button.secondary:hover:not(:disabled):not([aria-disabled='true']) {
   background: var(--tint);
   border-color: var(--line-strong);
 }
@@ -1804,7 +1804,7 @@ main:focus {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: var(--space-2) var(--space-3);
-  padding: var(--space-4) 0;
+  padding: var(--space-4) 0 var(--space-4) var(--space-2);
   border-bottom: 1px solid var(--line);
   font-size: 13px;
 }
@@ -1858,4 +1858,83 @@ main:focus {
   padding: 0 var(--space-4) var(--space-4);
   font-size: var(--caption);
   color: var(--muted);
+}
+
+/* Explain unavailable actions without changing the layout above the trigger. */
+.action-explanation {
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.action-explanation > .button {
+  width: 100%;
+}
+.button[aria-disabled='true'] {
+  opacity: 1;
+  background: var(--line);
+  color: var(--text);
+  border-color: var(--line-strong);
+  cursor: not-allowed;
+}
+.action-reason {
+  margin-top: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface-muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+.action-reason > p {
+  margin-bottom: var(--space-2);
+}
+.action-reason > p:last-child {
+  margin-bottom: 0;
+}
+.missing-requirements {
+  color: var(--error);
+}
+.missing-requirements > p {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 700;
+}
+.missing-requirements ul {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-4);
+}
+.missing-requirements .text-button {
+  color: inherit;
+  text-align: left;
+  justify-content: flex-start;
+  overflow-wrap: anywhere;
+}
+.invalid-field > span,
+.invalid-field > label,
+.invalid-field.criterion-score h4 {
+  color: var(--error);
+}
+.invalid-field textarea,
+.invalid-field select {
+  border-color: var(--error);
+  box-shadow: 0 0 0 1px var(--error);
+}
+.invalid-field.confirmation input {
+  outline: 2px solid var(--error);
+  outline-offset: 2px;
+}
+.invalid-field.criterion-score .score-options {
+  outline: 2px solid var(--error);
+  outline-offset: 4px;
+  border-radius: var(--radius-control);
+}
+.score-summary li[data-missing='true'] {
+  background: var(--error-bg);
+  box-shadow: inset 3px 0 var(--error);
+}
+.score-summary li[data-missing='true'] strong,
+.score-summary li[data-missing='true'] > span {
+  color: var(--error);
 }

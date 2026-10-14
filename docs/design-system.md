@@ -37,12 +37,15 @@ These text/background pairs exceed WCAG AA's 4.5:1 threshold for normal text. Co
 | `EvidenceReview`    | Findings, source links, provenance disclosure, analysis controls                |
 | `ReviewProcess`     | Shared draft, criterion selection, draft/final actions                          |
 | `Dialog` / `Notice` | Focus restoration and accessible feedback                                       |
+| `ActionButton`      | Guarded unavailable actions with hover, keyboard, and touch explanations        |
 
 ReviewProcess remains mounted across workflow steps and owns one draft, so navigation preserves typed work. CriterionScore renders the current score controls and shared scale. Passage IDs remain stable within a submission version. Workspace responses are applied only if no newer read or accepted mutation has superseded them.
 
 The queue closes when evidence review or scoring begins, reclaiming its entire column. The labeled Show review queue control reopens it and focuses the filter without resetting the current review, filter, or unsaved assessment. Each criterion displays its evidence and human score together. Selecting a score keeps the current criterion and keyboard focus intact; Next criterion is explicit. The recommendation summarizes all scores, with Edit score returning to the corresponding evidence. The selected scale meaning remains visible beneath its radio group.
 
 Draft edits save after a short pause. The writer serializes requests and drains newer edits before navigation or export. Inputs stay editable during background saves. Show Saving changes and All changes saved inline; reserve retry and reload actions for failures. Header actions show local pending feedback when waiting for a save, and keyboard retry retains a stable focus target. Finalization remains explicit.
+
+Unavailable Finalize and AI actions remain keyboard discoverable with `aria-disabled` and guarded activation. Hover or focus reveals their reason below the button without moving it; touch can request the same guidance. Escape dismisses it, returning focus to the trigger if a guidance link was focused. For incomplete finalization, use the semantic error color on missing labels, borders, and score rows, paired with specific written requirements and direct links to each field or criterion. Mark invalid controls with `aria-invalid` and associate the explanation through `aria-describedby`. Keep completed inputs unmarked, clear each requirement as it is corrected, and explain operational waits without inventing field errors.
 
 ## Copy and layout rules
 

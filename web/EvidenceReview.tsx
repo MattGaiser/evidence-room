@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import CriterionScore from './CriterionScore';
+import ActionButton from './ActionButton';
 import {
   ArrowLeft,
   ArrowRight,
@@ -45,6 +46,7 @@ export default function EvidenceReview({
   scores,
   onScore,
   scoreDisabled,
+  scoreInvalid,
   saveControls,
 }: {
   detail: Detail;
@@ -62,6 +64,7 @@ export default function EvidenceReview({
   scores: Record<string, number | null>;
   onScore: (id: string, value: number) => void;
   scoreDisabled: boolean;
+  scoreInvalid: boolean;
   saveControls: ReactNode;
 }) {
   const review = detail.review;
@@ -187,6 +190,7 @@ export default function EvidenceReview({
         criterion={criterion}
         score={scores[criterion.id]}
         disabled={scoreDisabled}
+        invalid={scoreInvalid && scores[criterion.id] === null}
         finalized={detail.assessment?.finalized === true}
         onScore={(value) => onScore(criterion.id, value)}
       />
@@ -276,18 +280,15 @@ export default function EvidenceReview({
             </button>
           </>
         ) : (
-          <>
-            <button
-              type="button"
-              className="button secondary full"
-              disabled={!ai.available || ai.remaining === 0 || detail.assessment?.finalized}
-              onClick={onAnalyze}
-            >
-              <Sparkles size={16} />
-              {review?.source === 'openai' ? 'Run a new AI analysis' : 'Run AI analysis'}
-            </button>
-            {unavailable && <p className="field-help">{unavailable}</p>}
-          </>
+          <ActionButton
+            className="button secondary full"
+            disabled={!!unavailable}
+            onClick={onAnalyze}
+            explanation={<p>{unavailable}</p>}
+          >
+            <Sparkles size={16} />
+            {review?.source === 'openai' ? 'Run a new AI analysis' : 'Run AI analysis'}
+          </ActionButton>
         )}
       </div>
     </section>

@@ -25,6 +25,7 @@ A round reviewer needs to understand what an entry actually demonstrates, identi
 
 16. Draft edits save automatically after a short pause, including valid zero and partial scores. Inputs remain editable while a request is pending. Navigation and export drain the latest edits without a routine discard prompt. Failures retain fields and expose recovery with stable keyboard focus.
 17. Finalization shares the navigation gate and waits for autosave. Its confirmation cannot dismiss after Record is submitted; a failed preflight closes it and focuses save recovery. Unload protection applies immediately to new edits and pending recording.
+18. Unavailable Finalize exposes specific missing requirements on hover, keyboard focus, or touch. Missing fields and scores receive red styling plus associated text, while completed values remain unmarked. Links focus the corresponding field or scoring criterion; blocked activation never records a recommendation. Escape dismisses guidance without losing focus. Unavailable AI actions explain their cause without making a provider request.
 
 ## Scope
 
