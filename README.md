@@ -22,7 +22,7 @@ Open **[http://127.0.0.1:5194](http://127.0.0.1:5194)**. Keep the terminal runni
 
 On Windows, stop the running server before `npm run build` or `npm run check`; Windows locks assemblies while they are in use. Use `npm run dev` alongside the API for frontend changes.
 
-Start with **Tidewell Collective → Review the evidence**. Review one criterion at a time using Previous/Next or the criterion selector. Click a quotation to highlight its source in yellow. **Score & recommend** has two pages: enter four scores, then write your rationale and recommendation. Save a draft from either page. Finalization requires the complete scorecard and confirmation. Export downloads JSON containing the rubric, all submission versions and analyses, saved assessment, and event history.
+Start with **Tidewell Collective → Review the evidence**. Review one criterion at a time using Previous/Next or the criterion selector. The queue hides during review; **Show review queue** reopens it. Click a quotation to highlight its source in yellow, then use **Back to finding** to return. **Score & recommend** has two pages: enter four scores, then write your rationale and recommendation. Choosing a score opens the next unscored section without closing the current one. Save a draft from either page. Finalization requires the complete scorecard and confirmation. Export downloads JSON containing the rubric, all submission versions and analyses, saved assessment, and event history.
 
 The default workspace needs no API key. Its analyses are labeled **Example analysis**. New submissions can be reviewed manually. Data persists in `.local/evidence.sqlite`; restarting the server retains it. To start a separate workspace, set `EVIDENCE_DB` to a new SQLite file before starting.
 

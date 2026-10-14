@@ -29,16 +29,18 @@ These text/background pairs exceed WCAG AA's 4.5:1 threshold for normal text. Co
 
 `web/tokens.css` owns color values, spacing, radii, type, shadows, and control height. `web/styles.css` owns shared controls, component layouts, and responsive rules. Components use semantic classes instead of inline colors or local theme objects. Use the existing spacing scale and shared button, field, panel, and dialog treatments when adding a control.
 
-| Component           | Responsibility                                                                    |
-| ------------------- | --------------------------------------------------------------------------------- |
-| `App`               | Selected entry, pending operations, navigation, mutation guards, API coordination |
-| `SubmissionQueue`   | Queue display, filtering controls, disclosure state                               |
-| `SubmissionReader`  | Original passages and exact citation highlights                                   |
-| `EvidenceReview`    | Findings, source links, provenance disclosure, analysis controls                  |
-| `Scorecard`         | Unsaved scores and reasoning, draft/final actions                                 |
-| `Dialog` / `Notice` | Focus restoration and accessible feedback                                         |
+| Component           | Responsibility                                                                  |
+| ------------------- | ------------------------------------------------------------------------------- |
+| `App`               | Selected entry, queue visibility, navigation, mutation guards, API coordination |
+| `SubmissionQueue`   | Queue display and filtering controls                                            |
+| `SubmissionReader`  | Original passages and exact citation highlights                                 |
+| `EvidenceReview`    | Findings, source links, provenance disclosure, analysis controls                |
+| `Scorecard`         | Unsaved scores and reasoning, draft/final actions                               |
+| `Dialog` / `Notice` | Focus restoration and accessible feedback                                       |
 
 The scorecard remains mounted across workflow steps so navigation preserves typed work. Passage IDs remain stable within a submission version. Workspace responses are applied only if no newer read or accepted mutation has superseded them.
+
+The queue closes when evidence review or scoring begins, reclaiming its entire column. The labeled Show review queue control reopens it and focuses the filter without resetting the current review, filter, or unsaved assessment. Score summaries use a chevron and Choose score prompt. Selecting a score reveals the next unscored section while leaving the current section and keyboard focus intact. The selected scale meaning remains visible beneath its radio group.
 
 ## Copy and layout rules
 
@@ -47,4 +49,5 @@ The scorecard remains mounted across workflow steps so navigation preserves type
 - Place short metadata and related actions on the same row where they fit. Keep original text beside evidence and scoring on desktop; allow normal document flow on phones.
 - Show one evidence criterion per page, with Previous/Next, a direct selector, and a page count. Separate scores from recommendation details; preserve inputs across pages. Use native accordions for scoring and secondary detail. Keep every filter available at the widths where its results are visible.
 - Preserve pending, success, failure, cancellation, and unsaved states. Page buttons focus the visible destination heading; native selectors retain keyboard focus. Finalization focuses its recorded result.
+- Give source inspection a return path to the originating quotation. Clear the highlighted passage when changing criteria or workflow steps.
 - Check keyboard focus, contrast, narrow reflow, enlarged text, short screens, and access to the bottom of sticky panels after layout changes.

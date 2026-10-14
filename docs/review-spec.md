@@ -18,6 +18,8 @@ A round reviewer needs to understand what an entry actually demonstrates, identi
 10. The queue, evidence links, forms, dialogs, and scorecard work with a keyboard and at narrow and short viewports. Feedback names the result of every non-obvious action.
 11. Evidence review displays one criterion with Previous/Next and direct selection. Page buttons focus a visible heading even after expanding long content; the native selector retains keyboard focus. Assessment pages preserve scores and rationale in both directions and provide a route to missing scores.
 12. Evidence status uses a written label and icon as well as color. Status text and yellow quotation highlights meet a 4.5:1 text contrast ratio in the rendered interface. Automated axe checks and manual browser inspection cover the tested workflow states.
+13. Starting evidence review or scoring hides the entire queue column. Reopening restores the filter and preserves unsaved work; selecting another submission still requires resolving unsaved changes. Choosing a score opens the next unscored section without stealing radio-group focus or closing the current section.
+14. Source inspection includes Back to finding, restoring focus to the triggering quotation. Changing criteria or workflow steps clears previous highlights and their return actions.
 
 ## Scope
 

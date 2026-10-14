@@ -11,6 +11,8 @@ import {
   Layers3,
   LoaderCircle,
   Plus,
+  PanelLeftClose,
+  PanelLeftOpen,
   RefreshCw,
   Search,
 } from 'lucide-react';
@@ -40,6 +42,9 @@ export default function App() {
   );
   const [tab, setTab] = useState<Tab>('submission');
   const [filter, setFilter] = useState('all');
+  const [queueExpanded, setQueueExpanded] = useState(
+    () => !window.matchMedia('(max-width: 760px)').matches,
+  );
   const [loadError, setLoadError] = useState('');
   const [notice, setNotice] = useState<{ id: number; text: string; error?: boolean } | null>(null);
   const noticeId = useRef(0);
@@ -59,10 +64,13 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const request = useRef<AbortController | null>(null);
   const [citation, setCitation] = useState<Citation | null>(null);
+  const citationOrigin = useRef<HTMLElement | null>(null);
   const [reload, setReload] = useState(0);
   const [sourceExpanded, setSourceExpanded] = useState(true);
   const changeTab = (next: Tab) => {
     setTab(next);
+    setCitation(null);
+    if (next !== 'submission') setQueueExpanded(false);
     if (window.matchMedia('(max-width: 760px)').matches) setSourceExpanded(next === 'submission');
   };
   const previousTab = useRef(tab);
@@ -182,9 +190,30 @@ export default function App() {
       feedback('Reloading the latest saved entry.');
     }
   };
-  const showCitation = (next: Citation) => {
+  const showCitation = (next: Citation, origin: HTMLButtonElement) => {
+    citationOrigin.current = origin;
     setCitation({ ...next });
     setSourceExpanded(true);
+  };
+  const returnToFinding = () => {
+    if (window.matchMedia('(max-width: 760px)').matches) setSourceExpanded(false);
+    requestAnimationFrame(() => {
+      const origin = citationOrigin.current;
+      if (origin?.isConnected) {
+        origin.focus({ preventScroll: true });
+        origin.scrollIntoView({ block: 'center' });
+      }
+    });
+  };
+  const toggleQueue = (event: MouseEvent<HTMLButtonElement>) => {
+    event.currentTarget.focus();
+    setQueueExpanded(!queueExpanded);
+    if (!queueExpanded)
+      requestAnimationFrame(() => {
+        const filter = document.getElementById('queue-filter');
+        filter?.focus({ preventScroll: true });
+        filter?.scrollIntoView({ block: 'nearest' });
+      });
   };
   async function runAnalysis() {
     if (!detail || busy) return;
@@ -305,13 +334,14 @@ export default function App() {
             <p>Opening the review workspace…</p>
           </div>
         ) : (
-          <div className="workspace-layout">
+          <div className={`workspace-layout ${queueExpanded ? '' : 'queue-collapsed'}`}>
             <SubmissionQueue
               entries={workspace.entries}
               selected={selected}
               filter={filter}
               onFilter={setFilter}
               onSelect={selectEntry}
+              expanded={queueExpanded}
             />
             <div className="review-workspace">
               <div className="entry-heading">
@@ -322,14 +352,26 @@ export default function App() {
                   </p>
                   <h2>{detail.entry.title}</h2>
                 </div>
-                <button
-                  type="button"
-                  className="icon-button export-top"
-                  aria-label="Export case packet"
-                  onClick={() => void exportPacket()}
-                >
-                  <ArrowDownToLine size={19} />
-                </button>
+                <div className="entry-actions">
+                  <button
+                    type="button"
+                    className="button secondary"
+                    aria-expanded={queueExpanded}
+                    aria-controls="submission-queue"
+                    onClick={toggleQueue}
+                  >
+                    {queueExpanded ? <PanelLeftClose size={17} /> : <PanelLeftOpen size={17} />}
+                    {queueExpanded ? 'Hide review queue' : 'Show review queue'}
+                  </button>
+                  <button
+                    type="button"
+                    className="button secondary"
+                    onClick={() => void exportPacket()}
+                  >
+                    <ArrowDownToLine size={19} />
+                    Export case packet
+                  </button>
+                </div>
               </div>
               <nav className="review-tabs" aria-label="Review steps">
                 {tabs.map((item, index) => (
@@ -338,10 +380,7 @@ export default function App() {
                     key={item.id}
                     className={tab === item.id ? 'active' : ''}
                     aria-current={tab === item.id ? 'step' : undefined}
-                    onClick={() => {
-                      changeTab(item.id);
-                      setCitation(null);
-                    }}
+                    onClick={() => changeTab(item.id)}
                   >
                     <span className="tab-number">{index + 1}</span>
                     <item.Icon size={16} />
@@ -357,6 +396,7 @@ export default function App() {
                   expanded={sourceExpanded}
                   disabled={busy}
                   onToggle={() => setSourceExpanded((value) => !value)}
+                  onReturn={returnToFinding}
                   onRevise={() => {
                     if (canLeave()) setForm('revision');
                   }}
@@ -414,6 +454,7 @@ export default function App() {
                       ai={workspace.ai}
                       busy={busy}
                       onCitation={showCitation}
+                      onCriterionChange={() => setCitation(null)}
                       onAnalyze={() => void runAnalysis()}
                       onCancel={cancelAnalysis}
                       onContinue={() => changeTab('decision')}

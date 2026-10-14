@@ -1,4 +1,4 @@
-import { ChevronDown } from 'lucide-react';
+import { ArrowRight, ChevronDown } from 'lucide-react';
 import type { Citation, Detail } from './types';
 
 export default function SubmissionReader({
@@ -8,6 +8,7 @@ export default function SubmissionReader({
   disabled,
   onToggle,
   onRevise,
+  onReturn,
 }: {
   detail: Detail;
   citation: Citation | null;
@@ -15,6 +16,7 @@ export default function SubmissionReader({
   disabled: boolean;
   onToggle: () => void;
   onRevise: () => void;
+  onReturn: () => void;
 }) {
   return (
     <section
@@ -36,12 +38,13 @@ export default function SubmissionReader({
         type="button"
         className="mobile-source-toggle text-button"
         aria-expanded={expanded}
+        aria-controls="source-passages"
         onClick={onToggle}
       >
         {expanded ? 'Collapse source passages' : 'Show source passages'}
         <ChevronDown size={16} />
       </button>
-      <div className="source-content">
+      <div className="source-content" id="source-passages">
         {detail.submission.paragraphs.map((paragraph, index) => {
           const match =
             citation?.paragraphId === paragraph.id ? paragraph.text.indexOf(citation.quote) : -1;
@@ -64,6 +67,11 @@ export default function SubmissionReader({
                   paragraph.text
                 )}
               </p>
+              {match >= 0 && (
+                <button type="button" className="text-button return-to-finding" onClick={onReturn}>
+                  Back to finding <ArrowRight size={15} />
+                </button>
+              )}
             </article>
           );
         })}

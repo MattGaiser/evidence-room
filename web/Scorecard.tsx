@@ -4,6 +4,7 @@ import {
   ArrowRight,
   Check,
   CircleCheck,
+  ChevronDown,
   Download,
   LoaderCircle,
   LockKeyhole,
@@ -200,8 +201,8 @@ export default function Scorecard({
           </h3>
           <div hidden={phase !== 0}>
             <p className="section-description">
-              Choose a score from 0 to 4 for each criterion. Use the scale to match the strength of
-              the evidence.
+              Choose a score from 0 to 4 for each criterion. Selecting a score opens the next
+              unscored section. You can change any score before finalizing.
             </p>
             <details className="scale-guide">
               <summary>How the 0–4 scale works</summary>
@@ -220,7 +221,6 @@ export default function Scorecard({
                 <details
                   className="score-criterion"
                   id={`score-criterion-${criterion.id}`}
-                  name="score-criterion"
                   key={criterion.id}
                   open={index === 0 ? true : undefined}
                 >
@@ -230,9 +230,16 @@ export default function Scorecard({
                       <small>{criterion.weight}% of total</small>
                     </span>
                     <strong>
-                      {scores[criterion.id] ?? '—'}
-                      <small>/4</small>
+                      {scores[criterion.id] === null ? (
+                        <span className="choose-score">Choose score</span>
+                      ) : (
+                        <>
+                          {scores[criterion.id]}
+                          <small>/4</small>
+                        </>
+                      )}
                     </strong>
+                    <ChevronDown className="score-chevron" size={18} aria-hidden="true" />
                   </summary>
                   <div className="score-criterion-body">
                     <p>{criterion.description}</p>
@@ -252,6 +259,17 @@ export default function Scorecard({
                             onChange={() => {
                               setScores((s) => ({ ...s, [criterion.id]: value }));
                               changed();
+                              if (scores[criterion.id] === null) {
+                                const next = criteria
+                                  .slice(index + 1)
+                                  .find((item) => scores[item.id] === null);
+                                const section = next
+                                  ? (document.getElementById(
+                                      `score-criterion-${next.id}`,
+                                    ) as HTMLDetailsElement | null)
+                                  : null;
+                                if (section) section.open = true;
+                              }
                             }}
                           />
                           <span aria-hidden="true">{value}</span>
@@ -261,6 +279,11 @@ export default function Scorecard({
                         </label>
                       ))}
                     </fieldset>
+                    <p className="selected-score" role="status">
+                      {scores[criterion.id] === null
+                        ? 'No score selected.'
+                        : `${scores[criterion.id]} of 4 — ${scale[scores[criterion.id] ?? 0]}`}
+                    </p>
                   </div>
                 </details>
               ))}

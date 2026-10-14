@@ -25,8 +25,8 @@ async function freshEntry(page: Page) {
   expect(response.ok()).toBeTruthy();
   const detail = await response.json();
   await openEntry(page);
-  const queue = page.locator('.queue-disclosure');
-  if ((await queue.getAttribute('open')) === null) await queue.locator('summary').click();
+  if (!(await page.getByLabel('Filter submissions').isVisible()))
+    await page.getByRole('button', { name: 'Show review queue', exact: true }).click();
   const button = page.getByRole('button', { name: new RegExp(team) });
   await button.click();
   await expect(page.getByRole('heading', { name: detail.entry.title })).toBeVisible();
@@ -247,6 +247,7 @@ test('pending scorecard save locks inputs and prevents context or analysis races
   await page.getByRole('button', { name: 'Save draft', exact: true }).click();
   await expect(page.getByLabel('Your rationale')).toBeDisabled();
   await expect(page.getByRole('combobox', { name: 'Recommendation', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: 'Show review queue', exact: true }).click();
   await page.getByRole('button', { name: /Commons Water Lab/ }).click();
   await expect(page.getByRole('heading', { name: entry.entry.title })).toBeVisible();
   await expect(page.locator('.toast')).toContainText('Wait for the scorecard save');
@@ -379,6 +380,7 @@ test('a delayed queue refresh cannot replace a newer saved scorecard status', as
   await expect(page.getByRole('heading', { name: title })).toBeVisible();
   await score(page);
   await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+  await page.getByRole('button', { name: 'Show review queue', exact: true }).click();
   const row = page.locator('.queue-entry').filter({ hasText: title });
   await expect(row).toContainText('Draft scorecard');
   release();
@@ -388,6 +390,113 @@ test('a delayed queue refresh cannot replace a newer saved scorecard status', as
   );
   await expect(row).toContainText('Draft scorecard');
   await expect(page.getByText('Draft saved on this device', { exact: true })).toBeVisible();
+});
+
+for (const width of [390, 1440]) {
+  test(`review hides the queue and reopening preserves work at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await openEntry(page);
+    if (width === 390) await page.getByRole('button', { name: 'Show review queue' }).click();
+    await page.getByLabel('Filter submissions').selectOption('pending');
+    await page.getByRole('button', { name: 'Review the evidence', exact: true }).click();
+    await expect(page.getByRole('complementary', { name: 'Submission queue' })).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Show review queue' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
+    const bounds = await page.locator('.review-workspace').boundingBox();
+    expect(bounds?.x).toBeLessThan(50);
+    expect(bounds?.width).toBeGreaterThan(width - 90);
+    await page.getByRole('button', { name: /Score & recommend/ }).click();
+    await page
+      .locator('#score-criterion-evidence')
+      .getByRole('radio', { name: /2 — Preliminary/ })
+      .check();
+    await page.getByRole('button', { name: '2 Recommendation', exact: true }).click();
+    await page
+      .getByLabel('Your rationale')
+      .fill('Keep this reasoning while checking the submission queue.');
+    await page.getByRole('button', { name: 'Show review queue' }).click();
+    await expect(page.getByLabel('Filter submissions')).toBeFocused();
+    await expect(page.getByLabel('Filter submissions')).toHaveValue('pending');
+    page.once('dialog', (dialog) => dialog.dismiss());
+    await page.getByRole('button', { name: /Commons Water Lab/ }).click();
+    await expect(page.getByLabel('Your rationale')).toHaveValue(/Keep this reasoning/);
+    await page.getByRole('button', { name: 'Hide review queue' }).click();
+    await expect(page.getByRole('button', { name: 'Show review queue' })).toBeFocused();
+    await page.getByRole('button', { name: 'Back to scores', exact: true }).click();
+    await expect(
+      page.locator('#score-criterion-evidence').getByRole('radio', { name: /2 — Preliminary/ }),
+    ).toBeChecked();
+  });
+
+  test(`source inspection returns to the finding and clears outdated highlights at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await openEntry(page);
+    await page.getByRole('button', { name: 'Review the evidence', exact: true }).click();
+    const quote = page.locator('.evidence-quote').first();
+    await quote.click();
+    await expect(page.locator('#passage-p2')).toBeFocused();
+    await page.getByRole('button', { name: 'Back to finding', exact: true }).click();
+    await expect(quote).toBeFocused();
+    await expect(quote).toBeInViewport({ ratio: 1 });
+    if (width === 390) await expect(page.locator('.source-content')).toBeHidden();
+    await page.getByRole('button', { name: 'Next criterion', exact: true }).click();
+    await expect(page.locator('mark')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Back to finding', exact: true })).toHaveCount(0);
+    await quote.click();
+    await page.getByLabel('Choose a criterion').selectOption('3');
+    await expect(page.locator('mark')).toHaveCount(0);
+    await quote.click();
+    await page.getByRole('button', { name: 'Continue to your assessment', exact: true }).click();
+    await expect(page.locator('mark')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Back to finding', exact: true })).toHaveCount(0);
+  });
+}
+
+test('scoring reveals the next section without disrupting radio keyboard navigation', async ({
+  page,
+}) => {
+  await openEntry(page);
+  await page.getByRole('button', { name: /Score & recommend/ }).click();
+  const sections = page.locator('.score-criterion');
+  await expect(sections.nth(1).locator('summary')).toContainText('Choose score');
+  await expect(sections.nth(1)).not.toHaveAttribute('open');
+  const evidence = sections.nth(0);
+  await evidence.getByRole('radio', { name: /2 — Preliminary/ }).check();
+  await expect(sections.nth(1)).toHaveAttribute('open');
+  await expect(evidence).toHaveAttribute('open');
+  await expect(evidence.locator('.selected-score')).toContainText('2 of 4 — Preliminary evidence');
+  await evidence.getByRole('radio', { name: /2 — Preliminary/ }).focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(evidence.getByRole('radio', { name: /3 — Measured/ })).toBeChecked();
+  await expect(evidence.getByRole('radio', { name: /3 — Measured/ })).toBeFocused();
+  await sections
+    .nth(1)
+    .getByRole('radio', { name: /2 — Preliminary/ })
+    .check();
+  await expect(sections.nth(2)).toHaveAttribute('open');
+  await sections
+    .nth(2)
+    .getByRole('radio', { name: /1 — Claim only/ })
+    .check();
+  await expect(sections.nth(3)).toHaveAttribute('open');
+  await sections
+    .nth(3)
+    .getByRole('radio', { name: /2 — Preliminary/ })
+    .check();
+  expect(
+    (
+      await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+        .analyze()
+    ).violations,
+  ).toEqual([]);
+  await page.getByRole('button', { name: 'Next: recommendation', exact: true }).click();
+  await page.getByRole('button', { name: 'Back to scores', exact: true }).click();
+  await expect(evidence.getByRole('radio', { name: /3 — Measured/ })).toBeChecked();
 });
 
 test('criterion pagination supports keyboard focus, direct selection, and backtracking', async ({
@@ -439,7 +548,9 @@ test('criterion pagination supports keyboard focus, direct selection, and backtr
   await page.getByRole('button', { name: '2 Recommendation', exact: true }).click();
   await expect(page.getByLabel('Your rationale')).toHaveValue(/Keep this reasoning/);
   await page.getByRole('button', { name: 'Back to scores', exact: true }).click();
-  await expect(page.getByRole('radio', { name: /2 — Preliminary/ })).toBeChecked();
+  await expect(
+    page.locator('#score-criterion-evidence').getByRole('radio', { name: /2 — Preliminary/ }),
+  ).toBeChecked();
 });
 
 test('status badges and yellow quotations have AA text contrast and non-color labels', async ({

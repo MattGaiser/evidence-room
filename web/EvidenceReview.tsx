@@ -34,6 +34,7 @@ export default function EvidenceReview({
   ai,
   busy,
   onCitation,
+  onCriterionChange,
   onAnalyze,
   onCancel,
   onContinue,
@@ -43,7 +44,8 @@ export default function EvidenceReview({
   rubricVersion: number;
   ai: Workspace['ai'];
   busy: boolean;
-  onCitation: (citation: Citation) => void;
+  onCitation: (citation: Citation, origin: HTMLButtonElement) => void;
+  onCriterionChange: () => void;
   onAnalyze: () => void;
   onCancel: () => void;
   onContinue: () => void;
@@ -56,6 +58,7 @@ export default function EvidenceReview({
   const focusCriterion = useRef(false);
   const changePage = (next: number) => {
     focusCriterion.current = true;
+    onCriterionChange();
     setPage(next);
   };
   const previousPage = useRef(page);
@@ -109,6 +112,7 @@ export default function EvidenceReview({
               value={page}
               onChange={(event) => {
                 focusCriterion.current = false;
+                onCriterionChange();
                 setPage(Number(event.target.value));
               }}
               aria-controls="criterion-panel"
@@ -135,7 +139,7 @@ export default function EvidenceReview({
                     type="button"
                     className="evidence-quote"
                     key={cite.paragraphId + cite.quote}
-                    onClick={() => onCitation(cite)}
+                    onClick={(event) => onCitation(cite, event.currentTarget)}
                   >
                     <span>“{cite.quote}”</span>
                     <small>
@@ -184,11 +188,14 @@ export default function EvidenceReview({
                   <button
                     type="button"
                     className="text-button"
-                    onClick={() =>
-                      onCitation({
-                        paragraphId: flag.paragraphId,
-                        quote: flag.quote,
-                      })
+                    onClick={(event) =>
+                      onCitation(
+                        {
+                          paragraphId: flag.paragraphId,
+                          quote: flag.quote,
+                        },
+                        event.currentTarget,
+                      )
                     }
                   >
                     View flagged passage

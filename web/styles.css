@@ -156,7 +156,8 @@ svg {
   line-height: 1.5;
 }
 .text-button:hover {
-  color: var(--focus);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 .icon-button {
   display: inline-flex;
@@ -322,15 +323,28 @@ main:focus {
   gap: 30px;
   align-items: start;
 }
+.workspace-layout.queue-collapsed {
+  grid-template-columns: minmax(0, 1fr);
+}
 .review-workspace {
   min-width: 0;
 }
 .entry-heading {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 22px;
   justify-content: space-between;
   margin-bottom: 23px;
+}
+.entry-heading > div:first-child {
+  flex: 1 1 360px;
+  min-width: 0;
+}
+.entry-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 .team-name {
   display: flex;
@@ -353,10 +367,6 @@ main:focus {
   letter-spacing: -0.7px;
   margin-top: 7px;
   overflow-wrap: anywhere;
-}
-.export-top {
-  border-color: var(--line);
-  background: var(--surface);
 }
 .review-tabs {
   display: flex;
@@ -436,8 +446,7 @@ main:focus {
   top: 24px;
   overflow: clip;
 }
-.queue-disclosure > summary {
-  list-style: none;
+.queue-heading {
   padding: 21px 20px;
   font-size: 14px;
   font-weight: 700;
@@ -446,17 +455,14 @@ main:focus {
   gap: 15px;
   align-items: center;
 }
-.queue-disclosure > summary::-webkit-details-marker {
-  display: none;
+.queue-heading h2 {
+  font-size: 14px;
 }
-.queue-disclosure > summary small {
+.queue-heading small {
   margin-left: 8px;
   color: var(--muted);
   font-size: 12px;
   font-weight: 550;
-}
-.queue-disclosure > summary > svg {
-  color: var(--muted);
 }
 .queue-progress {
   display: flex;
@@ -1036,6 +1042,29 @@ main:focus {
 }
 .score-criterion summary > strong {
   font-size: 19px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.choose-score {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 500;
+}
+.score-chevron {
+  align-self: center;
+  transition: transform 0.15s;
+}
+.score-criterion[open] > summary .score-chevron {
+  transform: rotate(180deg);
+}
+.score-criterion-body .selected-score {
+  margin: 12px 0 0;
+  color: var(--text);
+}
+.return-to-finding {
+  grid-column: 2;
+  justify-self: start;
+  margin-block: 8px 16px;
 }
 .score-criterion summary > strong small {
   margin-left: 2px;
@@ -1518,7 +1547,7 @@ main:focus {
   .queue progress {
     display: none;
   }
-  .queue-disclosure > summary {
+  .queue-heading {
     padding: 15px 20px;
   }
   .case-layout {
@@ -1619,6 +1648,18 @@ main:focus {
   }
   .entry-heading h2 {
     font-size: 21px;
+  }
+  .entry-actions {
+    width: 100%;
+  }
+  .entry-actions > button {
+    flex: 1 1 130px;
+  }
+  .score-criterion > summary {
+    flex-wrap: wrap;
+  }
+  .score-criterion > summary > span {
+    flex: 1 1 100px;
   }
   .team-name {
     font-size: 12px;
