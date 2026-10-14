@@ -42,6 +42,8 @@ ReviewProcess remains mounted across workflow steps and owns one draft, so navig
 
 The queue closes when evidence review or scoring begins, reclaiming its entire column. The labeled Show review queue control reopens it and focuses the filter without resetting the current review, filter, or unsaved assessment. Each criterion displays its evidence and human score together. Selecting a score keeps the current criterion and keyboard focus intact; Next criterion is explicit. The recommendation summarizes all scores, with Edit score returning to the corresponding evidence. The selected scale meaning remains visible beneath its radio group.
 
+Draft edits save after a short pause. The writer serializes requests and drains newer edits before navigation or export. Inputs stay editable during background saves. Show Saving changes and All changes saved inline; reserve retry and reload actions for failures. Header actions show local pending feedback when waiting for a save, and keyboard retry retains a stable focus target. Finalization remains explicit.
+
 ## Copy and layout rules
 
 - Give the first screen one clear next action. Keep the optional walkthrough in one place, with one card at a time.

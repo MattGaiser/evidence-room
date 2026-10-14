@@ -1788,14 +1788,6 @@ main:focus {
 .draft-controls > .field-help {
   margin-bottom: var(--space-3);
 }
-.draft-save-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3);
-  justify-content: space-between;
-}
-.draft-save-row p,
 .score-progress {
   font-size: var(--caption);
 }
@@ -1840,4 +1832,30 @@ main:focus {
   align-self: center;
   flex-wrap: wrap;
   max-width: 90px;
+}
+
+.autosave-status {
+  font-size: var(--caption);
+  color: var(--muted);
+}
+.save-recovery {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.transition-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-basis: 100%;
+  font-size: var(--caption);
+  color: var(--muted);
+}
+.queue-pending {
+  padding: 0 var(--space-4) var(--space-4);
+  font-size: var(--caption);
+  color: var(--muted);
 }

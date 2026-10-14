@@ -11,7 +11,7 @@ A round reviewer needs to understand what an entry actually demonstrates, identi
 3. Python accepts exactly one finding for each rubric criterion. A supporting citation must match a verbatim passage in that submission. Missing evidence has no fabricated citation. Unsupported paragraph IDs, duplicate criteria, malformed output, refusals, and incomplete responses fail closed.
 4. Submission text is untrusted data. It cannot add tools, override the rubric, supply system instructions, or finalize an assessment. Unconventional approaches are evaluated against the rubric rather than conformity to an expected solution.
 5. AI findings provide evidence and questions. Numeric scores are entered independently by a person. The server computes the weighted total; the browser cannot supply its own total.
-6. Draft scorecards persist with optimistic concurrency. Final recommendations require every score, a rationale, an outcome, and confirmation of independent review. Final records are immutable.
+6. Draft scorecards autosave with optimistic concurrency; older acknowledgments cannot clear newer edits. Final recommendations require every score, a rationale, an outcome, and confirmation of independent review. Final records are immutable.
 7. Export reads the entry, versions, rubric, analyses, assessments, and audit events in one database transaction.
 8. A missing provider key, timeout, canceled request, or invalid output leaves the submission and scorecard unchanged. The interface offers an accurate recovery action and retains typed work.
 9. Seeded examples work without a key and are labeled example analyses. Real generation is an explicit action. Default tests never use a paid provider.
@@ -22,6 +22,9 @@ A round reviewer needs to understand what an entry actually demonstrates, identi
 14. Source inspection includes Back to finding, restoring focus to the triggering quotation. Changing criteria or workflow steps clears previous highlights and their return actions.
 
 15. Each criterion is scored beside its evidence, including when no AI analysis exists. Partial drafts preserve valid score 0 and unscored null values. The final recommendation summarizes existing scores; editing or completing a score returns to that criterion's evidence. Finalization makes inline scores read-only.
+
+16. Draft edits save automatically after a short pause, including valid zero and partial scores. Inputs remain editable while a request is pending. Navigation and export drain the latest edits without a routine discard prompt. Failures retain fields and expose recovery with stable keyboard focus.
+17. Finalization shares the navigation gate and waits for autosave. Its confirmation cannot dismiss after Record is submitted; a failed preflight closes it and focuses save recovery. Unload protection applies immediately to new edits and pending recording.
 
 ## Scope
 

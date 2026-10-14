@@ -30,7 +30,7 @@ const cards = [
     title: 'Make an independent recommendation.',
     body: 'Check the scores you entered during review, explain your reasoning, and recommend a pilot, clarification, or further development.',
     detail:
-      'Edit score returns to the relevant evidence without losing your rationale. Save a draft at any point, then finalize when all scores and your recommendation are complete.',
+      'Edit score returns to the relevant evidence without losing your rationale. Changes save automatically as you work. Finalize when all scores and your recommendation are complete.',
     Icon: ListChecks,
     label: '03 / Make the call',
   },

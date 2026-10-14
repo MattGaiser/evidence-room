@@ -22,7 +22,7 @@ Open **[http://127.0.0.1:5194](http://127.0.0.1:5194)**. Keep the terminal runni
 
 On Windows, stop the running server before `npm run build` or `npm run check`; Windows locks assemblies while they are in use. Use `npm run dev` alongside the API for frontend changes.
 
-Start with **Tidewell Collective → Review the evidence**. Review one criterion at a time using Previous/Next or the criterion selector. The queue hides during review; **Show review queue** reopens it. Click a quotation to highlight its source in yellow, then use **Back to finding** to return. **Review & score** puts a score beside each criterion's evidence. Select a score, then use Next criterion; the selector shows which criteria are scored. **Recommendation** summarizes those scores and collects your rationale and outcome. Edit score returns to that criterion's evidence. Save a partial draft during review or from the recommendation. Finalization requires the complete scorecard and confirmation. Export downloads JSON containing the rubric, all submission versions and analyses, saved assessment, and event history.
+Start with **Tidewell Collective → Review the evidence**. Review one criterion at a time using Previous/Next or the criterion selector. The queue hides during review; **Show review queue** reopens it. Click a quotation to highlight its source in yellow, then use **Back to finding** to return. **Review & score** puts a score beside each criterion's evidence. Select a score, then use Next criterion; the selector shows which criteria are scored. **Recommendation** summarizes those scores and collects your rationale and outcome. Edit score returns to that criterion's evidence. Scores and recommendation edits save automatically. Wait for All changes saved before closing the browser; switching submissions and exporting finish pending saves for you. Finalization requires the complete scorecard and confirmation. Export downloads JSON containing the rubric, all submission versions and analyses, saved assessment, and event history.
 
 The default workspace needs no API key. Its analyses are labeled **Example analysis**. New submissions can be reviewed manually. Data persists in `.local/evidence.sqlite`; restarting the server retains it. To start a separate workspace, set `EVIDENCE_DB` to a new SQLite file before starting.
 
@@ -49,7 +49,7 @@ npx playwright install --with-deps
 npm run check
 ```
 
-The default suite needs no paid account. It includes .NET storage/domain tests, Python provider-contract tests, and Chromium/Firefox/WebKit workflow and accessibility checks. Browser tests launch their own server on port 5195 with live AI disabled and a temporary database. Do not run another service on that port. `npm run check` also runs lint, formatting, TypeScript, and release builds.
+The default suite needs no paid account. It includes .NET storage/domain tests, Python provider-contract tests, and Chromium/Firefox/WebKit workflow and accessibility checks. Each browser test launches an isolated API with live AI disabled and a temporary database, using ports 5195 and above by worker. Tests clean up their own processes and storage. `npm run check` also runs lint, formatting, TypeScript, and release builds.
 
 Optional paid verification is separate:
 

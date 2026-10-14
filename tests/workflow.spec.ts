@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 import type { Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { readFileSync } from 'node:fs';
@@ -60,7 +60,7 @@ test('source quotations reveal exact passages, preserve scores, and support repe
   await quote.click();
   await expect(page.locator('#passage-p2')).toBeFocused();
   await page.getByRole('button', { name: '3 Recommendation', exact: true }).click();
-  await expect(page.getByText('No scores entered yet', { exact: true })).toBeVisible();
+  await expect(page.getByText('Changes save automatically', { exact: true })).toBeVisible();
 });
 
 test('draft survives reload, finalization locks the version, and export contains the full case', async ({
@@ -68,8 +68,8 @@ test('draft survives reload, finalization locks the version, and export contains
 }) => {
   const entry = await freshEntry(page);
   await score(page);
-  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
-  await expect(page.getByText('Draft saved on this device', { exact: true })).toBeVisible();
+  await expect(page.getByText('All changes saved', { exact: true })).toBeVisible();
+  await expect(page.getByText('All changes saved', { exact: true })).toBeVisible();
   const persisted = await (await page.request.get(`/api/entries/${entry.entry.id}`)).json();
   expect(persisted.assessment.total).toBe(50);
   expect(persisted.assessment.finalized).toBe(false);
@@ -150,18 +150,17 @@ test('new submission, cancellation, revision, and missing analysis give visible 
   await expect(page.locator('.toast')).toBeVisible();
 });
 
-test('scorecard conflict preserves typed work and does not replace saved evidence', async ({
-  page,
-}) => {
+test('autosave conflicts preserve local edits and require explicit recovery', async ({ page }) => {
   const entry = await freshEntry(page);
   await score(page);
-  const original = await (await page.request.get(`/api/entries/${entry.entry.id}`)).json();
-  const saved = await page.request.put(`/api/entries/${entry.entry.id}/assessment`, {
+  await expect(page.getByText('All changes saved', { exact: true })).toBeVisible();
+  const original = await (await page.request.get('/api/entries/' + entry.entry.id)).json();
+  const saved = await page.request.put('/api/entries/' + entry.entry.id + '/assessment', {
     data: {
       expectedRevision: 1,
-      expectedVersion: 0,
+      expectedVersion: original.assessment.version,
       reviewId: null,
-      scores: { evidence: 1, resources: 1, delivery: 1, impact: 1 },
+      scores: original.assessment.scores,
       rationale: 'A second reviewer tab saved this rationale first.',
       outcome: 'clarify',
       confirmed: false,
@@ -169,12 +168,29 @@ test('scorecard conflict preserves typed work and does not replace saved evidenc
     },
   });
   expect(saved.ok()).toBeTruthy();
-  expect(original.assessment).toBeNull();
-  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+  let attempts = 0;
+  await page.route('**/assessment', async (route) => {
+    attempts++;
+    await route.continue();
+  });
+  await page
+    .getByLabel('Your rationale')
+    .fill('Keep this local reasoning when another tab has saved first.');
   await expect(page.getByRole('alert').filter({ hasText: 'changed in another tab' })).toBeVisible();
-  await expect(page.getByLabel('Your rationale')).toHaveValue(/field conditions/);
-  const final = await (await page.request.get(`/api/entries/${entry.entry.id}`)).json();
-  expect(final.assessment.rationale).toBe('A second reviewer tab saved this rationale first.');
+  await page
+    .getByLabel('Your rationale')
+    .fill('Keep these newer local edits too; do not overwrite the other tab.');
+  await page.waitForTimeout(850);
+  expect(attempts).toBe(1);
+  await expect(page.getByRole('button', { name: 'Try saving again' })).toHaveCount(0);
+  const persisted = await (await page.request.get('/api/entries/' + entry.entry.id)).json();
+  expect(persisted.assessment.rationale).toBe('A second reviewer tab saved this rationale first.');
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('button', { name: 'Reload saved draft', exact: true }).click();
+  await expect(page.getByLabel('Your rationale')).toHaveValue(
+    'A second reviewer tab saved this rationale first.',
+  );
+  await expect(page.getByRole('alert')).toHaveCount(0);
 });
 
 test('canceled and failed AI requests preserve the existing analysis and unsaved scorecard', async ({
@@ -223,17 +239,94 @@ test('canceled and failed AI requests preserve the existing analysis and unsaved
   ).toBeVisible();
 });
 
-test('pending scorecard save locks inputs and prevents context or analysis races', async ({
+test('pending autosave keeps editing usable and drains changes before switching entries', async ({
   page,
 }) => {
-  await page.route('**/api/workspace', async (route) => {
-    const response = await route.fetch();
-    const value = await response.json();
-    value.ai.available = true;
-    await route.fulfill({ response, json: value });
-  });
   const entry = await freshEntry(page);
+  let release = () => {};
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let seen = () => {};
+  const started = new Promise<void>((resolve) => {
+    seen = resolve;
+  });
+  let attempts = 0;
+  await page.route('**/assessment', async (route) => {
+    attempts++;
+    const response = await route.fetch();
+    if (attempts === 1) {
+      seen();
+      await pending;
+    }
+    await route.fulfill({ response });
+  });
   await score(page);
+  await started;
+  await expect(page.getByLabel('Your rationale')).toBeEnabled();
+  await expect(page.getByLabel('Recommendation', { exact: true })).toBeEnabled();
+  await page
+    .getByLabel('Your rationale')
+    .fill('This newer rationale must survive the delayed acknowledgment.');
+  await page.getByRole('button', { name: /Review & score/ }).click();
+  await page.getByLabel('Choose a criterion').selectOption('1');
+  await page.getByRole('radio', { name: /3.*Measured/ }).check();
+  await page.getByRole('button', { name: '3 Recommendation', exact: true }).click();
+  await page.getByRole('button', { name: 'Show review queue', exact: true }).click();
+  await page.getByRole('button', { name: /Commons Water Lab/ }).click();
+  await expect(page.getByRole('heading', { name: entry.entry.title })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Finalize', exact: true })).toBeDisabled();
+  expect(attempts).toBe(1);
+  release();
+  await expect(
+    page.getByRole('heading', { name: 'Repair the network before adding new supply', exact: true }),
+  ).toBeVisible();
+  expect(new URL(page.url()).searchParams.get('entry')).toBe('commons');
+  const saved = await (await page.request.get('/api/entries/' + entry.entry.id)).json();
+  expect(saved.assessment.rationale).toContain('newer rationale');
+  expect(saved.assessment.scores.resources).toBe(3);
+  expect(attempts).toBe(2);
+});
+
+test('failed autosave retries latest edits and does not loop on trimmed whitespace', async ({
+  page,
+}) => {
+  const entry = await freshEntry(page);
+  let attempts = 0;
+  await page.route('**/assessment', async (route) => {
+    attempts++;
+    if (attempts === 1)
+      await route.fulfill({
+        status: 503,
+        json: { error: 'The server is temporarily unavailable.' },
+      });
+    else await route.continue();
+  });
+  await page.getByRole('button', { name: '3 Recommendation', exact: true }).click();
+  await page.getByLabel('Your rationale').fill('Initial reasoning before the failed save.');
+  await expect(page.getByRole('alert')).toContainText('Changes not saved');
+  await page
+    .getByLabel('Your rationale')
+    .fill('Latest reasoning with intentional trailing spaces.  ');
+  await page.waitForTimeout(850);
+  expect(attempts).toBe(1);
+  await page.getByRole('button', { name: 'Try saving again', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#autosave-state')).toBeFocused();
+  await expect(page.getByText('All changes saved', { exact: true })).toBeVisible();
+  await page.waitForTimeout(850);
+  expect(attempts).toBe(2);
+  await expect(page.getByLabel('Your rationale')).toHaveValue(
+    'Latest reasoning with intentional trailing spaces.  ',
+  );
+  const saved = await (await page.request.get('/api/entries/' + entry.entry.id)).json();
+  expect(saved.assessment.rationale).toBe('Latest reasoning with intentional trailing spaces.');
+});
+
+test('export flushes immediate edits and unload protection matches every save status', async ({
+  page,
+}) => {
+  const entry = await freshEntry(page);
   let release = () => {};
   const pending = new Promise<void>((resolve) => {
     release = resolve;
@@ -243,20 +336,152 @@ test('pending scorecard save locks inputs and prevents context or analysis races
     await pending;
     await route.fulfill({ response });
   });
-  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
-  await expect(page.getByLabel('Your rationale')).toBeDisabled();
-  await expect(page.getByRole('combobox', { name: 'Recommendation', exact: true })).toBeDisabled();
-  await page.getByRole('button', { name: 'Show review queue', exact: true }).click();
-  await page.getByRole('button', { name: /Commons Water Lab/ }).click();
-  await expect(page.getByRole('heading', { name: entry.entry.title })).toBeVisible();
-  await expect(page.locator('.toast')).toContainText('Wait for the scorecard save');
+  await page.evaluate(() => {
+    const state = { violations: 0, checks: 0 };
+    (window as unknown as { saveGuard: typeof state }).saveGuard = state;
+    new MutationObserver(() => {
+      const text = document.querySelector('.autosave-status')?.textContent ?? '';
+      if (!text.includes('Saving changes')) return;
+      const event = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(event);
+      state.checks++;
+      if (!event.defaultPrevented) state.violations++;
+    }).observe(document.body, { subtree: true, childList: true, characterData: true });
+  });
   await page.getByRole('button', { name: /Review & score/ }).click();
-  await page.getByRole('button', { name: 'Run AI analysis', exact: true }).click();
-  await expect(page.locator('.toast')).toContainText('before running an analysis');
+  await page.getByRole('radio', { name: /0.*Not addressed/ }).check();
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export case packet', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: 'Preparing export...', exact: true }),
+  ).toBeDisabled();
+  await expect(page.getByRole('status').filter({ hasText: 'Preparing export...' })).toBeVisible();
   release();
-  await page.getByRole('button', { name: '3 Recommendation', exact: true }).click();
-  await expect(page.getByText('Draft saved on this device', { exact: true })).toBeVisible();
-  await expect(page.getByLabel('Your rationale')).toBeEnabled();
+  await download;
+  await expect(page.getByText('All changes saved', { exact: true })).toBeVisible();
+  const packet = await (
+    await page.request.get('/api/entries/' + entry.entry.id + '/export')
+  ).json();
+  expect(packet.current.assessment.scores.evidence).toBe(0);
+  expect(packet.current.assessment.scores.resources).toBeNull();
+  const guard = await page.evaluate(
+    () => (window as unknown as { saveGuard: { violations: number; checks: number } }).saveGuard,
+  );
+  expect(guard.checks).toBeGreaterThan(0);
+  expect(guard.violations).toBe(0);
+  expect(
+    await page.evaluate(() => {
+      const event = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(event);
+      return event.defaultPrevented;
+    }),
+  ).toBe(false);
+});
+
+test('recording waits for autosave and protects its confirmation until persistence finishes', async ({
+  page,
+}) => {
+  const entry = await freshEntry(page);
+  let releaseDraft = () => {},
+    releaseFinal = () => {},
+    seeDraft = () => {},
+    seeFinal = () => {};
+  const draftPending = new Promise<void>((resolve) => {
+    releaseDraft = resolve;
+  });
+  const finalPending = new Promise<void>((resolve) => {
+    releaseFinal = resolve;
+  });
+  const draftSeen = new Promise<void>((resolve) => {
+    seeDraft = resolve;
+  });
+  const finalSeen = new Promise<void>((resolve) => {
+    seeFinal = resolve;
+  });
+  const versions: number[] = [];
+  let finalStarted = false,
+    drafts = 0;
+  await page.route('**/assessment', async (route) => {
+    const input = route.request().postDataJSON();
+    versions.push(input.expectedVersion);
+    if (input.finalize) {
+      finalStarted = true;
+      seeFinal();
+      await finalPending;
+    }
+    const response = await route.fetch();
+    if (!input.finalize && ++drafts === 1) {
+      seeDraft();
+      await draftPending;
+    }
+    await route.fulfill({ response });
+  });
+  await score(page);
+  await draftSeen;
+  await page.getByRole('button', { name: 'Finalize', exact: true }).click();
+  await page.getByRole('button', { name: 'Record recommendation', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Keep editing', exact: true })).toBeDisabled();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toBeVisible();
+  expect(finalStarted).toBe(false);
+  const pendingUnload = () =>
+    page.evaluate(() => {
+      const event = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(event);
+      return event.defaultPrevented;
+    });
+  expect(await pendingUnload()).toBe(true);
+  releaseDraft();
+  await finalSeen;
+  expect(await pendingUnload()).toBe(true);
+  releaseFinal();
+  await expect(
+    page.getByRole('heading', { name: 'Recommendation recorded', exact: true }),
+  ).toBeVisible();
+  const saved = await (await page.request.get('/api/entries/' + entry.entry.id)).json();
+  expect(saved.assessment.finalized).toBe(true);
+  expect(versions).toEqual(versions.map((_, index) => index));
+});
+
+test('failed recording preflight closes confirmation and focuses save recovery', async ({
+  page,
+}) => {
+  await freshEntry(page);
+  let release = () => {},
+    seen = () => {};
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const started = new Promise<void>((resolve) => {
+    seen = resolve;
+  });
+  let failures = true,
+    finalRequests = 0;
+  await page.route('**/assessment', async (route) => {
+    if (route.request().postDataJSON().finalize) finalRequests++;
+    if (failures) {
+      seen();
+      await pending;
+      await route.fulfill({ status: 503, json: { error: 'The save service is unavailable.' } });
+    } else await route.continue();
+  });
+  await score(page);
+  await started;
+  await page.getByRole('button', { name: 'Finalize', exact: true }).click();
+  await page.getByRole('button', { name: 'Record recommendation', exact: true }).click();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toBeVisible();
+  release();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.locator('#draft-save-error')).toBeFocused();
+  await expect(page.getByRole('alert')).toContainText('save service is unavailable');
+  expect(finalRequests).toBe(0);
+  failures = false;
+  await page.getByRole('button', { name: 'Try saving again', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#autosave-state')).toBeFocused();
+  await expect(page.getByText('All changes saved', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('Your rationale')).toHaveValue(/field conditions/);
 });
 
 test('analysis preserves scores, requires a fresh confirmation, and blocks overlapping mutations', async ({
@@ -285,7 +510,7 @@ test('analysis preserves scores, requires a fresh confirmation, and blocks overl
   await page.getByRole('button', { name: 'Run AI analysis', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Add submission', exact: true })).toBeDisabled();
   await page.getByRole('button', { name: '3 Recommendation', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Save draft', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Save draft', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: /Review & score/ }).click();
   await page.getByLabel('Choose a criterion').selectOption('1');
   await page.getByRole('radio', { name: /3.*Measured/ }).check();
@@ -382,7 +607,7 @@ test('a delayed queue refresh cannot replace a newer saved scorecard status', as
   await page.getByRole('button', { name: 'Add to review queue' }).click();
   await expect(page.getByRole('heading', { name: title })).toBeVisible();
   await score(page);
-  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+  await expect(page.getByText('All changes saved', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Show review queue', exact: true }).click();
   const row = page.locator('.queue-entry').filter({ hasText: title });
   await expect(row).toContainText('Draft scorecard');
@@ -392,7 +617,7 @@ test('a delayed queue refresh cannot replace a newer saved scorecard status', as
     () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
   );
   await expect(row).toContainText('Draft scorecard');
-  await expect(page.getByText('Draft saved on this device', { exact: true })).toBeVisible();
+  await expect(page.getByText('All changes saved', { exact: true })).toBeVisible();
 });
 
 for (const width of [390, 1440]) {
@@ -421,8 +646,8 @@ for (const width of [390, 1440]) {
     await page.getByRole('button', { name: 'Show review queue' }).click();
     await expect(page.getByLabel('Filter submissions')).toBeFocused();
     await expect(page.getByLabel('Filter submissions')).toHaveValue('pending');
-    page.once('dialog', (dialog) => dialog.dismiss());
-    await page.getByRole('button', { name: /Commons Water Lab/ }).click();
+    await page.getByRole('button', { name: 'Hide review queue' }).click();
+    await page.getByRole('button', { name: 'Show review queue' }).click();
     await expect(page.getByLabel('Your rationale')).toHaveValue(/Keep this reasoning/);
     await page.getByRole('button', { name: 'Hide review queue' }).click();
     await expect(page.getByRole('button', { name: 'Show review queue' })).toBeFocused();
@@ -489,8 +714,8 @@ test('scores are entered beside evidence and summarized without losing keyboard 
   await expect(page.getByRole('heading', { name: 'Cost & resources', exact: true })).toBeVisible();
   await expect(page.getByRole('radio', { name: /2.*Preliminary/ })).toBeChecked();
   await page.getByRole('radio', { name: /3.*Measured/ }).check();
-  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
-  await expect(page.getByText('Draft saved on this device', { exact: true })).toBeVisible();
+  await expect(page.getByText('All changes saved', { exact: true })).toBeVisible();
+  await expect(page.getByText('All changes saved', { exact: true })).toBeVisible();
   expect(
     (
       await new AxeBuilder({ page })
@@ -565,8 +790,8 @@ test('partial inline drafts survive reload and missing scores return to their ev
   await page.getByRole('button', { name: /Review & score/ }).click();
   await expect(page.getByText('No analysis for this version yet.', { exact: true })).toBeVisible();
   await page.getByRole('radio', { name: /0.*Not addressed/ }).check();
-  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
-  await expect(page.getByText('Draft saved on this device', { exact: true })).toBeVisible();
+  await expect(page.getByText('All changes saved', { exact: true })).toBeVisible();
+  await expect(page.getByText('All changes saved', { exact: true })).toBeVisible();
   const saved = await (await page.request.get(`/api/entries/${entry.entry.id}`)).json();
   expect(saved.assessment.scores.evidence).toBe(0);
   expect(saved.assessment.scores.resources).toBeNull();
@@ -580,8 +805,8 @@ test('partial inline drafts survive reload and missing scores return to their ev
   ).toBeFocused();
   await expect(page.getByLabel('Choose a criterion')).toHaveValue('1');
   await page.getByRole('radio', { name: /2.*Preliminary/ }).check();
-  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
-  await expect(page.getByText('Draft saved on this device', { exact: true })).toBeVisible();
+  await expect(page.getByText('All changes saved', { exact: true })).toBeVisible();
+  await expect(page.getByText('All changes saved', { exact: true })).toBeVisible();
   const updated = await (await page.request.get(`/api/entries/${entry.entry.id}`)).json();
   expect(updated.assessment.version).toBe(2);
   expect(updated.assessment.scores.evidence).toBe(0);

@@ -22,6 +22,7 @@ import SubmissionReader from './SubmissionReader';
 import { formatDate } from './format';
 import { focusPanelHeading } from './focus';
 import ReviewProcess from './ReviewProcess';
+import type { FlushDraft } from './useAutosave';
 import Walkthrough from './Walkthrough';
 import Notice from './Notice';
 import { api, errorText } from './types';
@@ -33,12 +34,15 @@ const tabs = [
   { id: 'decision', label: 'Recommendation', Icon: ClipboardCheck },
 ] as const;
 type Tab = (typeof tabs)[number]['id'];
+type PendingAction = 'entry' | 'export' | 'new' | 'revision' | 'reload' | 'analysis' | 'finalize';
 export default function App() {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [detail, setDetail] = useState<Detail | null>(null);
   const [selected, setSelected] = useState(
     () => new URLSearchParams(window.location.search).get('entry') || 'tidewell',
   );
+  const selectedRef = useRef(selected);
+  selectedRef.current = selected;
   const [tab, setTab] = useState<Tab>('submission');
   const [filter, setFilter] = useState('all');
   const [queueExpanded, setQueueExpanded] = useState(
@@ -53,13 +57,13 @@ export default function App() {
     setTour(true);
   };
   const [form, setForm] = useState<'new' | 'revision' | null>(null);
-  const [dirty, setDirty] = useState(false);
-  const saving = useRef(false);
-  const setSaving = useCallback((value: boolean) => {
-    saving.current = value;
+  const persistDraft = useRef<FlushDraft | null>(null);
+  const registerDraft = useCallback((flush: FlushDraft | null) => {
+    persistDraft.current = flush;
   }, []);
-  const dirtyRef = useRef(dirty);
-  dirtyRef.current = dirty;
+  const transitioning = useRef(false);
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const transitionPending = pendingAction !== null;
   const [busy, setBusy] = useState(false);
   const request = useRef<AbortController | null>(null);
   const [citation, setCitation] = useState<Citation | null>(null);
@@ -136,16 +140,6 @@ export default function App() {
   }, [selected]);
 
   useEffect(() => {
-    const warn = (e: BeforeUnloadEvent) => {
-      if (dirtyRef.current) {
-        e.preventDefault();
-        e.returnValue = '';
-      }
-    };
-    window.addEventListener('beforeunload', warn);
-    return () => window.removeEventListener('beforeunload', warn);
-  }, []);
-  useEffect(() => {
     if (citation) {
       const passage = document.getElementById(`passage-${citation.paragraphId}`);
       passage?.focus({ preventScroll: true });
@@ -153,6 +147,7 @@ export default function App() {
     }
   }, [citation]);
   const acceptDetail = (next: Detail) => {
+    if (next.entry.id !== selectedRef.current) return;
     ++workspaceRead.current;
     setDetail(next);
     setWorkspace((old) =>
@@ -161,12 +156,37 @@ export default function App() {
         : old,
     );
   };
-  const canLeave = () => {
-    if (saving.current) {
-      feedback('Wait for the scorecard save to finish before leaving this entry.');
+  const withSavedDraft = async (
+    action: () => void | Promise<void>,
+    cancel = false,
+    kind: PendingAction = 'entry',
+  ) => {
+    if (transitioning.current) {
+      feedback('Finishing the current save before continuing.');
       return false;
     }
-    return !dirtyRef.current || window.confirm('Leave without saving the scorecard changes?');
+    transitioning.current = true;
+    setPendingAction(kind);
+    try {
+      if (cancel && request.current) cancelAnalysis();
+      if (persistDraft.current && !(await persistDraft.current())) {
+        feedback('Save failed. Your changes are still here.');
+        if (kind === 'finalize') return false;
+        if (tab === 'submission') changeTab('evidence', 'draft-save-error');
+        else
+          requestAnimationFrame(() => {
+            const panel = document.getElementById('draft-save-error');
+            panel?.focus({ preventScroll: true });
+            panel?.scrollIntoView({ block: 'nearest' });
+          });
+        return false;
+      }
+      await action();
+      return true;
+    } finally {
+      transitioning.current = false;
+      setPendingAction(null);
+    }
   };
   const cancelAnalysis = () => {
     request.current?.abort();
@@ -175,22 +195,26 @@ export default function App() {
     feedback('Analysis canceled. Your submission and scorecard are unchanged.');
   };
   const selectEntry = (entry: Entry) => {
-    if (entry.id === selected || !canLeave()) return;
-    if (busy) cancelAnalysis();
-    setSelected(entry.id);
-    changeTab('submission');
-    setDirty(false);
-    setCitation(null);
-    window.scrollTo({ top: 0 });
+    if (entry.id === selected) return;
+    void withSavedDraft(() => {
+      setSelected(entry.id);
+      changeTab('submission');
+      setCitation(null);
+      window.scrollTo({ top: 0 });
+    }, true);
   };
-  const reloadEntry = () => {
-    if (canLeave()) {
-      if (busy) cancelAnalysis();
-      setReload((n) => n + 1);
-      setDirty(false);
+  const reloadEntry = (discard = false) => {
+    const reloadSaved = () => {
+      setReload((value) => value + 1);
       setCitation(null);
       feedback('Reloading the latest saved entry.');
-    }
+    };
+    if (discard) {
+      if (window.confirm('Discard the unsaved changes and load the saved draft?')) {
+        if (request.current) cancelAnalysis();
+        reloadSaved();
+      }
+    } else void withSavedDraft(reloadSaved, true, 'reload');
   };
   const showCitation = (next: Citation, origin: HTMLButtonElement) => {
     citationOrigin.current = origin;
@@ -217,12 +241,18 @@ export default function App() {
         filter?.scrollIntoView({ block: 'nearest' });
       });
   };
-  async function runAnalysis() {
-    if (!detail || busy) return;
-    if (saving.current) {
-      feedback('Wait for the scorecard save to finish before running an analysis.');
-      return;
-    }
+  const runAnalysis = () => {
+    if (!detail || request.current) return;
+    void withSavedDraft(
+      () => {
+        void startAnalysis();
+      },
+      false,
+      'analysis',
+    );
+  };
+  async function startAnalysis() {
+    if (!detail || request.current) return;
     const controller = new AbortController();
     request.current = controller;
     setBusy(true);
@@ -251,27 +281,31 @@ export default function App() {
   }
   async function exportPacket() {
     if (!detail) return;
-    try {
-      const response = await fetch(`/api/entries/${detail.entry.id}/export`, {
-        signal: AbortSignal.timeout(12000),
-      });
-      if (!response.ok) throw new Error('The export could not be created. Try again.');
-      const url = URL.createObjectURL(await response.blob());
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `evidence-room-${detail.entry.id}.json`;
-      document.body.append(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-      feedback(
-        dirty
-          ? 'Saved case packet exported. Your unsaved scorecard edits are not included; save them to export an updated packet.'
-          : 'Case packet exported with the rubric, submission versions, analyses, and saved assessment.',
-      );
-    } catch (e) {
-      notifyError(e);
-    }
+    await withSavedDraft(
+      async () => {
+        try {
+          const response = await fetch(`/api/entries/${detail.entry.id}/export`, {
+            signal: AbortSignal.timeout(12000),
+          });
+          if (!response.ok) throw new Error('The export could not be created. Try again.');
+          const url = URL.createObjectURL(await response.blob());
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `evidence-room-${detail.entry.id}.json`;
+          document.body.append(link);
+          link.click();
+          link.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          feedback(
+            'Case packet exported with the rubric, submission versions, analyses, and your saved assessment.',
+          );
+        } catch (e) {
+          notifyError(e);
+        }
+      },
+      false,
+      'export',
+    );
   }
   return (
     <div className="app">
@@ -308,13 +342,17 @@ export default function App() {
           <button
             type="button"
             className="button primary"
-            disabled={!workspace || busy}
+            disabled={!workspace || busy || transitionPending}
             onClick={() => {
-              if (canLeave()) setForm('new');
+              void withSavedDraft(() => setForm('new'), false, 'new');
             }}
           >
-            <Plus size={17} />
-            Add submission
+            {pendingAction === 'new' ? (
+              <LoaderCircle size={17} className="spin" />
+            ) : (
+              <Plus size={17} />
+            )}
+            {pendingAction === 'new' ? 'Saving changes...' : 'Add submission'}
           </button>
         </div>
         {loadError ? (
@@ -344,6 +382,7 @@ export default function App() {
               onFilter={setFilter}
               onSelect={selectEntry}
               expanded={queueExpanded}
+              pending={transitionPending}
             />
             <div className="review-workspace">
               <div className="entry-heading">
@@ -355,6 +394,16 @@ export default function App() {
                   <h2>{detail.entry.title}</h2>
                 </div>
                 <div className="entry-actions">
+                  {transitionPending && (
+                    <p className="transition-status" role="status">
+                      <LoaderCircle size={16} className="spin" />
+                      {pendingAction === 'export'
+                        ? 'Preparing export...'
+                        : pendingAction === 'finalize'
+                          ? 'Recording recommendation...'
+                          : 'Saving changes before continuing...'}
+                    </p>
+                  )}
                   <button
                     type="button"
                     className="button secondary"
@@ -369,9 +418,14 @@ export default function App() {
                     type="button"
                     className="button secondary"
                     onClick={() => void exportPacket()}
+                    disabled={transitionPending}
                   >
-                    <ArrowDownToLine size={19} />
-                    Export case packet
+                    {pendingAction === 'export' ? (
+                      <LoaderCircle size={19} className="spin" />
+                    ) : (
+                      <ArrowDownToLine size={19} />
+                    )}
+                    {pendingAction === 'export' ? 'Preparing export...' : 'Export case packet'}
                   </button>
                 </div>
               </div>
@@ -400,7 +454,7 @@ export default function App() {
                   onToggle={() => setSourceExpanded((value) => !value)}
                   onReturn={returnToFinding}
                   onRevise={() => {
-                    if (canLeave()) setForm('revision');
+                    void withSavedDraft(() => setForm('revision'), false, 'revision');
                   }}
                 />
                 <div className="case-controls">
@@ -456,8 +510,19 @@ export default function App() {
                     analysisRunning={busy}
                     onSaved={acceptDetail}
                     onFeedback={feedback}
-                    onDirty={setDirty}
-                    onSaving={setSaving}
+                    onRegister={registerDraft}
+                    onReload={() => reloadEntry(true)}
+                    transitionPending={transitionPending}
+                    exporting={pendingAction === 'export'}
+                    onFinalize={(action) =>
+                      withSavedDraft(
+                        async () => {
+                          await action();
+                        },
+                        false,
+                        'finalize',
+                      )
+                    }
                     onExport={() => void exportPacket()}
                     onReview={(focusId) => changeTab('evidence', focusId)}
                     onRecommend={() => changeTab('decision')}
@@ -496,7 +561,7 @@ export default function App() {
                       </li>
                     ))}
                   </ol>
-                  <button type="button" className="text-button" onClick={reloadEntry}>
+                  <button type="button" className="text-button" onClick={() => reloadEntry()}>
                     <RefreshCw size={14} />
                     Reload saved entry
                   </button>
@@ -514,7 +579,6 @@ export default function App() {
           onClose={() => setForm(null)}
           onSaved={(next) => {
             setForm(null);
-            setDirty(false);
             if (next.entry.id === selected) {
               acceptDetail(next);
               setCitation(null);

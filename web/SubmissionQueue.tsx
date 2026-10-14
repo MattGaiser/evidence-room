@@ -8,6 +8,7 @@ export default function SubmissionQueue({
   onFilter,
   onSelect,
   expanded,
+  pending,
 }: {
   entries: Entry[];
   selected: string;
@@ -15,6 +16,7 @@ export default function SubmissionQueue({
   onFilter: (value: string) => void;
   onSelect: (entry: Entry) => void;
   expanded: boolean;
+  pending: boolean;
 }) {
   const reviewed = entries.filter((entry) => entry.status === 'reviewed').length;
   const visibleEntries = entries.filter(
@@ -34,6 +36,7 @@ export default function SubmissionQueue({
           Review queue <small>{entries.length}</small>
         </h2>
       </div>
+      {pending && <p className="queue-pending">Saving changes before continuing...</p>}
       <div className="queue-content">
         <div className="queue-progress">
           <span>
@@ -55,6 +58,7 @@ export default function SubmissionQueue({
               type="button"
               key={entry.id}
               className={`queue-entry ${entry.id === selected ? 'selected' : ''}`}
+              disabled={pending}
               aria-current={entry.id === selected ? 'true' : undefined}
               onClick={() => onSelect(entry)}
             >

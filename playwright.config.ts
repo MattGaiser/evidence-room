@@ -10,12 +10,6 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
-  webServer: {
-    command: 'node scripts/e2e-server.mjs',
-    url: 'http://127.0.0.1:5195/api/workspace',
-    reuseExistingServer: false,
-    timeout: 30000,
-  },
   projects: [
     { name: 'chromium', use: devices['Desktop Chrome'] },
     { name: 'firefox', use: devices['Desktop Firefox'] },

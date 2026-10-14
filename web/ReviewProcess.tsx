@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ComponentProps } from 'react';
 import {
   ArrowLeft,
@@ -8,13 +8,15 @@ import {
   Download,
   LoaderCircle,
   LockKeyhole,
-  Save,
+  RefreshCw,
 } from 'lucide-react';
 import { api, errorText, outcomeLabels } from './types';
 import type { Criterion, Detail } from './types';
 import Dialog from './Dialog';
 import EvidenceReview from './EvidenceReview';
 import { scoreLabels } from './CriterionScore';
+import useAutosave from './useAutosave';
+import type { FlushDraft } from './useAutosave';
 
 export default function ReviewProcess({
   detail,
@@ -22,8 +24,11 @@ export default function ReviewProcess({
   criteria,
   onSaved,
   onFeedback,
-  onDirty,
-  onSaving,
+  onRegister,
+  onReload,
+  transitionPending,
+  onFinalize,
+  exporting,
   onExport,
   active,
   evidence,
@@ -35,8 +40,11 @@ export default function ReviewProcess({
   criteria: Criterion[];
   onSaved: (value: Detail) => void;
   onFeedback: (message: string) => void;
-  onDirty: (value: boolean) => void;
-  onSaving: (value: boolean) => void;
+  onRegister: (flush: FlushDraft | null) => void;
+  onReload: () => void;
+  transitionPending: boolean;
+  onFinalize: (action: () => Promise<boolean>) => Promise<boolean>;
+  exporting: boolean;
   onExport: () => void;
   active: 'submission' | 'evidence' | 'decision';
   evidence: Omit<
@@ -64,8 +72,7 @@ export default function ReviewProcess({
       ? (detail.assessment?.confirmed ?? false)
       : false,
   );
-  const [dirty, setDirty] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [finalizing, setFinalizing] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState('');
   const [criterionIndex, setCriterionIndex] = useState(0);
@@ -79,7 +86,6 @@ export default function ReviewProcess({
     if (previousReview.current !== reviewId) {
       previousReview.current = reviewId;
       setConfirmed(false);
-      setDirty(true);
     }
   }, [reviewId]);
   const finalized = detail.assessment?.finalized === true;
@@ -96,81 +102,124 @@ export default function ReviewProcess({
     ? criteria.reduce((n, c) => n + ((scores[c.id] ?? 0) / 4) * c.weight, 0)
     : null;
   const ready = complete && rationale.trim().length >= 40 && outcome !== '' && confirmed;
+  const finalRequest = useRef<Promise<boolean> | null>(null);
+  const registerPersistence = useCallback(
+    (flush: FlushDraft | null) => {
+      onRegister(
+        flush
+          ? async () => {
+              if (finalRequest.current && !(await finalRequest.current)) return false;
+              return flush();
+            }
+          : null,
+      );
+    },
+    [onRegister],
+  );
+  const draft = { scores, rationale, outcome, confirmed, reviewId };
+  const autosave = useAutosave({
+    detail,
+    value: draft,
+    paused: analysisRunning,
+    enabled: !finalized && !finalizing,
+    recording: finalizing || (transitionPending && confirming),
+    onSaved,
+    onRegister: registerPersistence,
+  });
+  const recoveryFocus = useRef(false);
   useEffect(() => {
-    onDirty(dirty);
-    return () => onDirty(false);
-  }, [dirty, onDirty]);
+    if (confirming || !recoveryFocus.current) return;
+    recoveryFocus.current = false;
+    const frame = requestAnimationFrame(() => {
+      const panel = document.getElementById('draft-save-error');
+      panel?.focus({ preventScroll: true });
+      panel?.scrollIntoView({ block: 'nearest' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [confirming]);
+  const latestDraft = useRef(draft);
+  latestDraft.current = draft;
   const changed = () => {
-    setDirty(true);
     setError('');
   };
-  async function save(finalize: boolean) {
-    if (busy || analysisRunning) return;
-    setBusy(true);
-    onSaving(true);
+  function finalize() {
+    if (finalRequest.current || analysisRunning) return Promise.resolve(false);
+    setFinalizing(true);
     setError('');
-    try {
-      const next = await api<Detail>(`/api/entries/${detail.entry.id}/assessment`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          expectedRevision: detail.entry.revision,
-          expectedVersion: detail.assessment?.version ?? 0,
-          reviewId: detail.review?.id ?? null,
-          scores,
-          rationale,
-          outcome,
-          confirmed,
-          finalize,
-        }),
-      });
-      setDirty(false);
-      onSaved(next);
-      setConfirming(false);
-      onFeedback(
-        finalize
-          ? 'Recommendation recorded. This version is now locked and ready to export.'
-          : 'Scorecard draft saved.',
-      );
-    } catch (e) {
-      setError(errorText(e));
-      setConfirming(false);
-    } finally {
-      setBusy(false);
-      onSaving(false);
-    }
+    const operation = (async () => {
+      try {
+        if (!(await autosave.flush())) {
+          recoveryFocus.current = true;
+          setConfirming(false);
+          return false;
+        }
+        const next = await api<Detail>('/api/entries/' + detail.entry.id + '/assessment', {
+          method: 'PUT',
+          body: JSON.stringify({
+            ...latestDraft.current,
+            expectedRevision: detail.entry.revision,
+            expectedVersion: autosave.getVersion(),
+            finalize: true,
+          }),
+        });
+        onSaved(next);
+        setConfirming(false);
+        onFeedback('Recommendation recorded. This version is now locked and ready to export.');
+        return true;
+      } catch (cause) {
+        setError(errorText(cause));
+        recoveryFocus.current = true;
+        setConfirming(false);
+        return false;
+      } finally {
+        setFinalizing(false);
+      }
+    })();
+    finalRequest.current = operation;
+    void operation.finally(() => {
+      finalRequest.current = null;
+    });
+    return operation;
   }
   const draftControls = (
     <div className="draft-controls">
-      {error && (
-        <p className="error-panel" role="alert">
-          {error}
-        </p>
+      {(autosave.error || error) && (
+        <div className="error-panel" role="alert" id="draft-save-error" tabIndex={-1}>
+          <p>Changes not saved. {autosave.error?.text ?? error}</p>
+          <div className="save-recovery">
+            {autosave.error && !autosave.error.conflict && (
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() => {
+                  document.getElementById('autosave-state')?.focus({ preventScroll: true });
+                  void autosave.retry();
+                }}
+                disabled={autosave.saving}
+              >
+                <RefreshCw size={16} />
+                Try saving again
+              </button>
+            )}
+            <button type="button" className="text-button" onClick={onReload}>
+              Reload saved draft
+            </button>
+          </div>
+        </div>
       )}
-      {analysisRunning && (
-        <p className="field-help">
-          Analysis is running. Keep editing; save or finalize after it finishes.
-        </p>
-      )}
-      <div className="draft-save-row">
-        <p className={dirty ? 'unsaved' : 'muted'} role="status">
-          {busy
-            ? 'Saving scorecard...'
-            : dirty
-              ? 'Unsaved changes'
+      <p className="autosave-status" role="status" id="autosave-state" tabIndex={-1}>
+        {autosave.error
+          ? 'Not saved'
+          : finalizing
+            ? 'Recording recommendation...'
+            : autosave.dirty || autosave.saving
+              ? analysisRunning
+                ? 'Changes will save when analysis finishes.'
+                : 'Saving changes...'
               : detail.assessment
-                ? 'Draft saved on this device'
-                : 'No scores entered yet'}
-        </p>
-        <button
-          type="button"
-          className="button secondary"
-          disabled={busy || analysisRunning || !dirty}
-          onClick={() => void save(false)}
-        >
-          <Save size={16} />
-          Save draft
-        </button>
-      </div>
+                ? 'All changes saved'
+                : 'Changes save automatically'}
+      </p>
     </div>
   );
   return (
@@ -187,7 +236,7 @@ export default function ReviewProcess({
             setScores((current) => ({ ...current, [id]: value }));
             changed();
           }}
-          scoreDisabled={busy}
+          scoreDisabled={finalizing}
           saveControls={finalized || active !== 'evidence' ? null : draftControls}
           onContinue={onRecommend}
         />
@@ -220,9 +269,14 @@ export default function ReviewProcess({
                 {detail.assessment?.total?.toFixed(1)} / 100 · submission v{detail.entry.revision}
               </p>
               <p className="recorded-rationale">{detail.assessment?.rationale}</p>
-              <button type="button" className="button primary" onClick={onExport}>
-                <Download size={16} />
-                Export case packet
+              <button
+                type="button"
+                className="button primary"
+                onClick={onExport}
+                disabled={transitionPending}
+              >
+                {exporting ? <LoaderCircle size={16} className="spin" /> : <Download size={16} />}
+                {exporting ? 'Preparing export...' : 'Export case packet'}
               </button>
             </div>
           ) : (
@@ -277,7 +331,7 @@ export default function ReviewProcess({
               <label className="field">
                 <span>Your rationale</span>
                 <textarea
-                  disabled={busy}
+                  disabled={finalizing}
                   rows={4}
                   maxLength={4000}
                   value={rationale}
@@ -295,7 +349,7 @@ export default function ReviewProcess({
               <div className="field">
                 <label htmlFor="recommendation">Recommendation</label>
                 <select
-                  disabled={busy}
+                  disabled={finalizing}
                   id="recommendation"
                   value={outcome}
                   onChange={(e) => {
@@ -314,7 +368,7 @@ export default function ReviewProcess({
               <label className="confirmation">
                 <input
                   type="checkbox"
-                  disabled={busy}
+                  disabled={finalizing}
                   checked={confirmed}
                   onChange={(e) => {
                     setConfirmed(e.target.checked);
@@ -328,7 +382,9 @@ export default function ReviewProcess({
                 <button
                   type="button"
                   className="button primary full"
-                  disabled={busy || analysisRunning || !ready}
+                  disabled={
+                    finalizing || transitionPending || analysisRunning || !!autosave.error || !ready
+                  }
                   onClick={() => setConfirming(true)}
                 >
                   Finalize
@@ -347,7 +403,7 @@ export default function ReviewProcess({
             <Dialog
               title="Record this recommendation?"
               onClose={() => {
-                if (!busy) setConfirming(false);
+                if (!finalizing && !transitionPending) setConfirming(false);
               }}
             >
               <div className="final-preview">
@@ -367,7 +423,7 @@ export default function ReviewProcess({
                 <button
                   type="button"
                   className="button secondary"
-                  disabled={busy}
+                  disabled={finalizing || transitionPending}
                   onClick={() => setConfirming(false)}
                 >
                   Keep editing
@@ -375,11 +431,20 @@ export default function ReviewProcess({
                 <button
                   type="button"
                   className="button primary"
-                  disabled={busy}
-                  onClick={() => void save(true)}
+                  disabled={finalizing || transitionPending}
+                  onClick={async () => {
+                    if (!(await onFinalize(finalize))) {
+                      recoveryFocus.current = true;
+                      setConfirming(false);
+                    }
+                  }}
                 >
-                  {busy ? <LoaderCircle size={16} className="spin" /> : <Check size={16} />}Record
-                  recommendation
+                  {finalizing || transitionPending ? (
+                    <LoaderCircle size={16} className="spin" />
+                  ) : (
+                    <Check size={16} />
+                  )}
+                  Record recommendation
                 </button>
               </div>
             </Dialog>
