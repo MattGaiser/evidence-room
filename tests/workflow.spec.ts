@@ -329,6 +329,64 @@ test('submission save prevents edits and warns before discarding typed intake', 
   await expect(page.getByRole('dialog')).toHaveCount(0);
 });
 
+test('queue filtering remains available and open after narrowing the viewport', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openEntry(page);
+  const filter = page.getByLabel('Filter submissions');
+  await filter.selectOption('reviewed');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(filter).toBeVisible();
+  await filter.selectOption('all');
+  await expect(filter).toBeVisible();
+  await expect(
+    page.locator('.queue-entry').filter({ hasText: 'Tidewell Collective' }),
+  ).toBeVisible();
+});
+
+test('a delayed queue refresh cannot replace a newer saved scorecard status', async ({ page }) => {
+  await openEntry(page);
+  let release = () => {};
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let refreshes = 0;
+  let finish = () => {};
+  const fulfilled = new Promise<void>((resolve) => {
+    finish = resolve;
+  });
+  await page.route('**/api/workspace', async (route) => {
+    const read = ++refreshes;
+    const response = await route.fetch();
+    if (read === 1) {
+      await pending;
+      await route.fulfill({ response });
+      finish();
+    } else await route.fulfill({ response });
+  });
+  const title = `Delayed refresh ${crypto.randomUUID().slice(0, 8)}`;
+  await page.getByRole('button', { name: 'Add submission', exact: true }).click();
+  await page.getByLabel('Team name').fill(title);
+  await page.getByLabel('Submission title').fill(title);
+  await page
+    .getByLabel('Submission narrative')
+    .fill(seed.submissions[0].paragraphs.map((p) => p.text).join('\n\n'));
+  await page.getByRole('button', { name: 'Add to review queue' }).click();
+  await expect(page.getByRole('heading', { name: title })).toBeVisible();
+  await score(page);
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+  const row = page.locator('.queue-entry').filter({ hasText: title });
+  await expect(row).toContainText('Draft scorecard');
+  release();
+  await fulfilled;
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  );
+  await expect(row).toContainText('Draft scorecard');
+  await expect(page.getByText('Draft saved on this device', { exact: true })).toBeVisible();
+});
+
 test('walkthrough is paginated, optional, replayable, and restores keyboard focus', async ({
   page,
 }) => {
@@ -336,9 +394,7 @@ test('walkthrough is paginated, optional, replayable, and restores keyboard focu
   const trigger = page.getByRole('button', { name: 'How it works', exact: true });
   await trigger.click();
   await expect(page.getByRole('dialog')).toBeVisible();
-  await expect(
-    page.getByRole('heading', { name: 'Start with the team’s actual submission.' }),
-  ).toBeFocused();
+  await expect(page.getByRole('heading', { name: 'Start with the submission.' })).toBeFocused();
   await page.getByRole('button', { name: 'Next', exact: true }).click();
   await page.getByRole('button', { name: 'Back', exact: true }).click();
   await page.getByRole('button', { name: 'Next', exact: true }).click();
@@ -371,17 +427,19 @@ for (const width of [320, 1440])
       ).violations,
     ).toEqual([]);
     await start.click();
-    await expect(
-      page.getByRole('heading', { name: 'Evidence, criterion by criterion' }),
-    ).toBeFocused();
-    await expect(
-      page.getByRole('heading', { name: 'Evidence, criterion by criterion' }),
-    ).toBeInViewport({ ratio: 1 });
+    await expect(page.getByRole('heading', { name: 'Evidence review' })).toBeFocused();
+    await expect(page.getByRole('heading', { name: 'Evidence review' })).toBeInViewport({
+      ratio: 1,
+    });
     await page.locator('.evidence-quote').first().click();
     await expect(page.locator('#passage-p2 mark')).toBeVisible();
     await page.getByRole('button', { name: 'Continue to your assessment' }).click();
-    await expect(page.getByRole('heading', { name: 'Make the call', exact: true })).toBeFocused();
-    await expect(page.getByRole('heading', { name: 'Make the call', exact: true })).toBeInViewport({
+    await expect(
+      page.getByRole('heading', { name: 'Score and recommend', exact: true }),
+    ).toBeFocused();
+    await expect(
+      page.getByRole('heading', { name: 'Score and recommend', exact: true }),
+    ).toBeInViewport({
       ratio: 1,
     });
     expect(

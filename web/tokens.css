@@ -1,0 +1,50 @@
+/* Core palette: https://styleguide.xprize.org/#color */
+:root {
+  --xprize-black: #151515;
+  --xprize-off-white: #f6f6f6;
+  --xprize-grey: #d4d3d9;
+  --xprize-fuchsia: #dd00f0;
+  --xprize-red: #f00048;
+  --white: #ffffff;
+  --neutral-600: #606066;
+  --neutral-800: #343438;
+
+  --page: var(--xprize-off-white);
+  --surface: var(--white);
+  --surface-muted: var(--xprize-off-white);
+  --text: var(--xprize-black);
+  --muted: var(--neutral-600);
+  --brand: var(--xprize-black);
+  --brand-hover: var(--neutral-800);
+  --accent: var(--xprize-fuchsia);
+  --line: var(--xprize-grey);
+  --line-strong: var(--neutral-600);
+  --focus: var(--xprize-fuchsia);
+  --tint: var(--xprize-off-white);
+  --success: var(--text);
+  --success-bg: var(--surface-muted);
+  --warning: var(--text);
+  --warning-bg: var(--surface-muted);
+  --error: var(--text);
+  --error-bg: var(--surface-muted);
+  --error-line: var(--xprize-red);
+  --mark: var(--xprize-fuchsia);
+  --on-mark: var(--xprize-black);
+  --on-brand: var(--white);
+  --overlay: #15151566;
+  --shadow-dialog: 0 24px 90px #15151535;
+  --shadow-notice: 0 8px 35px #15151530;
+
+  --radius-control: 6px;
+  --radius-panel: 10px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --control-height: 44px;
+  --font-family: Helvetica, Arial, sans-serif;
+  --body: 14px;
+  --caption: 12px;
+}

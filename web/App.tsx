@@ -2,12 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MouseEvent } from 'react';
 import {
   ArrowDownToLine,
-  ArrowLeft,
   ArrowRight,
-  BookOpen,
-  Check,
   ChevronDown,
-  ChevronRight,
   CircleHelp,
   ClipboardCheck,
   FileText,
@@ -17,10 +13,12 @@ import {
   Plus,
   RefreshCw,
   Search,
-  ShieldCheck,
-  Sparkles,
 } from 'lucide-react';
 import EntryForm from './EntryForm';
+import SubmissionQueue from './SubmissionQueue';
+import SubmissionReader from './SubmissionReader';
+import EvidenceReview from './EvidenceReview';
+import { formatDate } from './format';
 import Scorecard from './Scorecard';
 import Walkthrough from './Walkthrough';
 import Notice from './Notice';
@@ -33,21 +31,6 @@ const tabs = [
   { id: 'decision', label: 'Score & recommend', Icon: ClipboardCheck },
 ] as const;
 type Tab = (typeof tabs)[number]['id'];
-const coverage = {
-  documented: 'Evidence described',
-  partial: 'Needs detail',
-  missing: 'Not provided',
-};
-
-function date(value: string) {
-  return new Date(value).toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-}
-
 export default function App() {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [detail, setDetail] = useState<Detail | null>(null);
@@ -103,13 +86,15 @@ export default function App() {
   const dismissNotice = useCallback(() => setNotice(null), []);
   const notifyError = (e: unknown) =>
     setNotice({ id: ++noticeId.current, text: errorText(e), error: true });
+  const workspaceRead = useRef(0);
   const refreshWorkspace = useCallback(async () => {
+    const read = ++workspaceRead.current;
     const value = await api<Workspace>('/api/workspace');
-    setWorkspace(value);
-    return value;
+    if (read === workspaceRead.current) setWorkspace(value);
   }, []);
   useEffect(() => {
     void reload;
+    const read = ++workspaceRead.current;
     let active = true;
     const controller = new AbortController();
     setLoadError('');
@@ -124,7 +109,7 @@ export default function App() {
     ])
       .then(([ws, next]) => {
         if (active) {
-          setWorkspace(ws);
+          if (read === workspaceRead.current) setWorkspace(ws);
           setDetail(next);
         }
       })
@@ -161,6 +146,7 @@ export default function App() {
     }
   }, [citation]);
   const acceptDetail = (next: Detail) => {
+    ++workspaceRead.current;
     setDetail(next);
     setWorkspace((old) =>
       old
@@ -222,7 +208,7 @@ export default function App() {
       if (request.current !== controller) return;
       acceptDetail(next);
       feedback(
-        'AI analysis saved. Every cited quotation passed the source check. Review each finding before scoring.',
+        'AI analysis saved. Open a quotation to check its source, then review the findings.',
       );
       changeTab('evidence');
     } catch (e) {
@@ -259,14 +245,6 @@ export default function App() {
       notifyError(e);
     }
   }
-  const entries =
-    workspace?.entries.filter(
-      (e) =>
-        filter === 'all' ||
-        (filter === 'reviewed' ? e.status === 'reviewed' : e.status !== 'reviewed'),
-    ) ?? [];
-  const reviewed = workspace?.entries.filter((e) => e.status === 'reviewed').length ?? 0;
-  const review = detail?.review;
   return (
     <div className="app">
       <a href="#main" className="skip-link">
@@ -280,9 +258,7 @@ export default function App() {
           evidence<span className="brand-light">room</span>
           <span className="brand-dot">.</span>
         </a>
-        <span className="workspace-label">Competition review</span>
         <div className="header-actions">
-          <span className="sample-label">Sample workspace</span>
           <button
             type="button"
             className="text-button"
@@ -297,11 +273,9 @@ export default function App() {
       <main id="main" tabIndex={-1}>
         <div className="round-heading">
           <div>
-            <p className="eyebrow">
-              {workspace?.competition.round ?? 'Submission review'} · Round 01
-            </p>
+            <p className="eyebrow">{workspace?.competition.round ?? 'Submission review'}</p>
             <h1>{workspace?.competition.name ?? 'Evidence Room'}</h1>
-            <p>Review what the team demonstrates. Record what you recommend.</p>
+            <p>Check submission evidence, score the rubric, and record a recommendation.</p>
           </div>
           <button
             type="button"
@@ -335,84 +309,13 @@ export default function App() {
           </div>
         ) : (
           <div className="workspace-layout">
-            <aside className="queue panel" aria-label="Submission queue">
-              <details
-                open={!window.matchMedia('(max-width: 760px)').matches}
-                className="queue-disclosure"
-              >
-                <summary>
-                  <span>
-                    Review queue <small>{workspace.entries.length}</small>
-                  </span>
-                  <ChevronDown size={16} />
-                </summary>
-                <div className="queue-content">
-                  <div className="queue-progress">
-                    <span>
-                      {reviewed} of {workspace.entries.length} reviewed
-                    </span>
-                    <span>{Math.round((reviewed / workspace.entries.length) * 100)}%</span>
-                  </div>
-                  <progress
-                    value={reviewed}
-                    max={workspace.entries.length}
-                    aria-label="Entries reviewed"
-                  />
-                  <label className="queue-filter">
-                    <span className="visually-hidden">Filter submissions</span>
-                    <select value={filter} onChange={(e) => setFilter(e.target.value)}>
-                      <option value="all">All submissions</option>
-                      <option value="pending">Needs review</option>
-                      <option value="reviewed">Reviewed</option>
-                    </select>
-                  </label>
-                  <nav aria-label="Choose a submission">
-                    {entries.map((entry, index) => (
-                      <button
-                        type="button"
-                        key={entry.id}
-                        className={`queue-entry ${entry.id === selected ? 'selected' : ''}`}
-                        aria-current={entry.id === selected ? 'true' : undefined}
-                        onClick={() => selectEntry(entry)}
-                      >
-                        <span className="queue-entry-number">
-                          {String(index + 1).padStart(2, '0')}
-                        </span>
-                        <span>
-                          <strong>{entry.team}</strong>
-                          <span className="queue-entry-title">{entry.title}</span>
-                          <span className={`entry-status ${entry.status}`}>
-                            {entry.status === 'reviewed' ? <Check size={12} /> : <i />}
-                            {entry.status === 'reviewed'
-                              ? 'Reviewed'
-                              : entry.status === 'draft'
-                                ? 'Draft scorecard'
-                                : 'Ready to review'}
-                          </span>
-                        </span>
-                        <ChevronRight size={16} />
-                      </button>
-                    ))}
-                    {entries.length === 0 && (
-                      <p className="empty-queue">
-                        No entries match this filter. Choose All submissions to see the full queue.
-                      </p>
-                    )}
-                  </nav>
-                  <div className="queue-foot">
-                    <BookOpen size={17} />
-                    <p>
-                      First time here? Start with Tidewell, then compare the two alternative
-                      approaches.
-                    </p>
-                    <button type="button" className="text-button" onClick={openTour}>
-                      Walk me through it
-                      <ArrowRight size={14} />
-                    </button>
-                  </div>
-                </div>
-              </details>
-            </aside>
+            <SubmissionQueue
+              entries={workspace.entries}
+              selected={selected}
+              filter={filter}
+              onFilter={setFilter}
+              onSelect={selectEntry}
+            />
             <div className="review-workspace">
               <div className="entry-heading">
                 <div>
@@ -451,96 +354,28 @@ export default function App() {
                 ))}
               </nav>
               <div className={`case-layout ${tab === 'submission' ? 'reading-layout' : ''}`}>
-                <section
-                  className={`submission panel ${!sourceExpanded ? 'source-collapsed' : ''}`}
-                  aria-labelledby="source-title"
-                >
-                  <div className="panel-heading">
-                    <div>
-                      <p className="eyebrow">Original submission</p>
-                      <h3 id="source-title">The team’s case</h3>
-                    </div>
-                    <span className="version-chip">v{detail.entry.revision}</span>
-                  </div>
-                  <button
-                    type="button"
-                    className="mobile-source-toggle text-button"
-                    aria-expanded={sourceExpanded}
-                    onClick={() => setSourceExpanded((value) => !value)}
-                  >
-                    {sourceExpanded ? 'Collapse source passages' : 'Show source passages'}
-                    <ChevronDown size={16} />
-                  </button>
-                  <div className="source-content">
-                    <div className="source-intro">
-                      <FileText size={16} />
-                      <span>
-                        {detail.submission.paragraphs.length} passages ·{' '}
-                        {detail.submission.paragraphs.reduce(
-                          (n, p) => n + p.text.split(/\s+/).length,
-                          0,
-                        )}{' '}
-                        words
-                      </span>
-                      <button
-                        type="button"
-                        className="text-button"
-                        disabled={busy}
-                        onClick={() => {
-                          if (canLeave()) setForm('revision');
-                        }}
-                      >
-                        Submit revision
-                      </button>
-                    </div>
-                    {detail.submission.paragraphs.map((paragraph, index) => {
-                      const match =
-                        citation?.paragraphId === paragraph.id
-                          ? paragraph.text.indexOf(citation.quote)
-                          : -1;
-                      return (
-                        <article
-                          key={paragraph.id}
-                          id={`passage-${paragraph.id}`}
-                          className={`passage ${match >= 0 ? 'cited' : ''}`}
-                          tabIndex={-1}
-                        >
-                          <span className="passage-number">
-                            {String(index + 1).padStart(2, '0')}
-                          </span>
-                          <p>
-                            {match >= 0 && citation ? (
-                              <>
-                                {paragraph.text.slice(0, match)}
-                                <mark>{citation.quote}</mark>
-                                {paragraph.text.slice(match + citation.quote.length)}
-                              </>
-                            ) : (
-                              paragraph.text
-                            )}
-                          </p>
-                        </article>
-                      );
-                    })}
-                  </div>
-                </section>
+                <SubmissionReader
+                  detail={detail}
+                  citation={citation}
+                  expanded={sourceExpanded}
+                  disabled={busy}
+                  onToggle={() => setSourceExpanded((value) => !value)}
+                  onRevise={() => {
+                    if (canLeave()) setForm('revision');
+                  }}
+                />
                 <div className="case-controls" ref={controls}>
                   <section
                     hidden={tab !== 'submission'}
                     className="panel start-review"
                     aria-labelledby="start-title"
                   >
-                    <span className="round-icon">
-                      <ShieldCheck size={26} />
-                    </span>
-                    <p className="eyebrow">A focused review</p>
                     <h3 id="start-title" tabIndex={-1}>
-                      Read it. Check it.
-                      <br /> Make the call.
+                      Review this submission
                     </h3>
                     <p>
-                      Use four criteria to decide whether the evidence supports a supervised pilot,
-                      or whether the team needs to clarify its case.
+                      Check the team’s results, costs, pilot plan, and community benefit. Decide
+                      whether to recommend a pilot or request more information.
                     </p>
                     <ol className="review-path">
                       <li>
@@ -573,183 +408,20 @@ export default function App() {
                       Review the evidence
                       <ArrowRight size={16} />
                     </button>
-                    <p className="example-caption">Fictional entries and an illustrative rubric.</p>
                   </section>
-                  <section
-                    hidden={tab !== 'evidence'}
-                    className="panel analysis"
-                    aria-labelledby="analysis-title"
-                  >
-                    <div className="panel-heading">
-                      <div>
-                        <p className="eyebrow">Rubric v{workspace.competition.version}</p>
-                        <h3 id="analysis-title" tabIndex={-1}>
-                          Evidence, criterion by criterion
-                        </h3>
-                      </div>
-                      <Sparkles size={21} />
-                    </div>
-                    {review ? (
-                      <>
-                        <div className="analysis-summary">
-                          <span
-                            className={`analysis-source ${review.source === 'example' ? 'example' : ''}`}
-                          >
-                            {review.source === 'example' ? 'Example analysis' : 'AI analysis'}
-                            <span>Submission v{review.submissionRevision}</span>
-                          </span>
-                          <p>{review.content.summary}</p>
-                        </div>
-                        <div className="findings">
-                          {workspace.competition.criteria.map((criterion) => {
-                            const finding = review.content.criteria.find(
-                              (f) => f.criterionId === criterion.id,
-                            );
-                            if (!finding) return null;
-                            return (
-                              <details className="finding" key={criterion.id} open>
-                                <summary>
-                                  <span>{criterion.name}</span>
-                                  <span className={`coverage ${finding.status}`}>
-                                    {coverage[finding.status]}
-                                  </span>
-                                  <ChevronDown size={15} />
-                                </summary>
-                                <div className="finding-content">
-                                  <p>{finding.finding}</p>
-                                  {finding.evidence.map((cite) => (
-                                    <button
-                                      type="button"
-                                      className="evidence-quote"
-                                      key={cite.paragraphId + cite.quote}
-                                      onClick={() => showCitation(cite)}
-                                    >
-                                      <span>“{cite.quote}”</span>
-                                      <small>
-                                        Passage {cite.paragraphId.slice(1)}
-                                        <ArrowLeft size={13} />
-                                      </small>
-                                    </button>
-                                  ))}
-                                  {finding.question && (
-                                    <div className="clarification">
-                                      <strong>Ask the team</strong>
-                                      <p>{finding.question}</p>
-                                    </div>
-                                  )}
-                                </div>
-                              </details>
-                            );
-                          })}
-                        </div>
-                        {review.content.flags.length > 0 && (
-                          <div className="review-flags">
-                            <h4>Items for attention</h4>
-                            {review.content.flags.map((flag) => (
-                              <div key={flag.paragraphId + flag.quote}>
-                                <p>{flag.message}</p>
-                                <button
-                                  type="button"
-                                  className="text-button"
-                                  onClick={() =>
-                                    showCitation({
-                                      paragraphId: flag.paragraphId,
-                                      quote: flag.quote,
-                                    })
-                                  }
-                                >
-                                  View flagged passage
-                                  <ArrowLeft size={13} />
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        <details className="analysis-provenance">
-                          <summary>Analysis details</summary>
-                          <dl>
-                            <div>
-                              <dt>Source</dt>
-                              <dd>
-                                {review.source === 'example'
-                                  ? 'Authored illustration'
-                                  : review.model}
-                              </dd>
-                            </div>
-                            <div>
-                              <dt>Prompt</dt>
-                              <dd>{review.promptVersion}</dd>
-                            </div>
-                            <div>
-                              <dt>Saved</dt>
-                              <dd>{date(review.createdAt)}</dd>
-                            </div>
-                          </dl>
-                        </details>
-                      </>
-                    ) : (
-                      <div className="empty-analysis">
-                        <Search size={32} />
-                        <h4>No analysis for this version yet.</h4>
-                        <p>
-                          Run an AI analysis to map the submission to the rubric. You can also read
-                          the original and score it manually.
-                        </p>
-                      </div>
-                    )}
-                    <div className="analysis-actions">
-                      {busy ? (
-                        <>
-                          <p role="status">
-                            <LoaderCircle size={16} className="spin" />
-                            Reading the rubric and checking source passages…
-                          </p>
-                          <button
-                            type="button"
-                            className="button secondary full"
-                            onClick={cancelAnalysis}
-                          >
-                            Cancel analysis
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button
-                            type="button"
-                            className="button secondary full"
-                            disabled={
-                              !workspace.ai.available ||
-                              workspace.ai.remaining === 0 ||
-                              detail.assessment?.finalized
-                            }
-                            onClick={() => void runAnalysis()}
-                          >
-                            <Sparkles size={16} />
-                            {review?.source === 'openai'
-                              ? 'Run a new AI analysis'
-                              : 'Run AI analysis'}
-                          </button>
-                          <p className="field-help">
-                            {detail.assessment?.finalized
-                              ? 'The final recommendation is locked. A submission revision starts a fresh review.'
-                              : !workspace.ai.available
-                                ? 'Live AI is off. Example analyses and independent scoring still work.'
-                                : workspace.ai.remaining === 0
-                                  ? 'The configured AI allowance has been used. Manual review remains available.'
-                                  : 'Sends this submission and rubric to OpenAI. A new analysis leaves your scores unchanged.'}
-                          </p>
-                        </>
-                      )}
-                      <button
-                        type="button"
-                        className="button primary full"
-                        onClick={() => changeTab('decision')}
-                      >
-                        Continue to your assessment
-                        <ArrowRight size={16} />
-                      </button>
-                    </div>
-                  </section>
+                  <div hidden={tab !== 'evidence'}>
+                    <EvidenceReview
+                      detail={detail}
+                      criteria={workspace.competition.criteria}
+                      rubricVersion={workspace.competition.version}
+                      ai={workspace.ai}
+                      busy={busy}
+                      onCitation={showCitation}
+                      onAnalyze={() => void runAnalysis()}
+                      onCancel={cancelAnalysis}
+                      onContinue={() => changeTab('decision')}
+                    />
+                  </div>
                   <div hidden={tab !== 'decision'}>
                     <Scorecard
                       key={`${detail.entry.id}-${detail.entry.revision}-${reload}`}
@@ -782,7 +454,7 @@ export default function App() {
                         <div>
                           <strong>{event.message}</strong>
                           <span>
-                            {date(event.createdAt)} · Submission v{event.revision}
+                            {formatDate(event.createdAt)} · Submission v{event.revision}
                           </span>
                         </div>
                       </li>
@@ -797,13 +469,6 @@ export default function App() {
             </div>
           </div>
         )}
-        <footer className="page-footer">
-          <span>Evidence Room · An independent product work sample</span>
-          <button type="button" className="text-button" onClick={openTour}>
-            About this workflow
-            <ArrowRight size={14} />
-          </button>
-        </footer>
       </main>
       <Notice message={notice} dismiss={dismissNotice} />
       {tour && <Walkthrough onClose={() => setTour(false)} />}

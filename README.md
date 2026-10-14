@@ -20,6 +20,8 @@ npm start
 
 Open **[http://127.0.0.1:5194](http://127.0.0.1:5194)**. Keep the terminal running. There is no hosted URL for this local sample.
 
+On Windows, stop the running server before `npm run build` or `npm run check`; Windows locks assemblies while they are in use. Use `npm run dev` alongside the API for frontend changes.
+
 Start with **Tidewell Collective → Review the evidence**. Click a quoted passage to highlight its source, then choose **Score & recommend**. Save an incomplete draft or complete four scores, a rationale, a recommendation, and the confirmation to finalize. Export downloads JSON containing the rubric, all submission versions and analyses, saved assessment, and event history.
 
 The default workspace needs no API key. Its analyses are labeled **Example analysis**. New submissions can be reviewed manually. Data persists in `.local/evidence.sqlite`; restarting the server retains it. To start a separate workspace, set `EVIDENCE_DB` to a new SQLite file before starting.
@@ -60,6 +62,7 @@ It makes up to three small provider requests through a running local server, inc
 - [Review specification](docs/review-spec.md): scope and observable acceptance criteria.
 - [Architecture](docs/architecture.md): ownership, transactions, AI trust boundary, and deployment requirements.
 - [Product decisions](docs/product-decisions.md): workflow, interaction system, and source research.
+- [Interface system](docs/design-system.md): XPRIZE colors, shared tokens, component ownership, and copy rules.
 - [Extending the review workflow](docs/extending-reviews.md): reusable spec-driven change process and test map.
 
 The stack is React/TypeScript, ASP.NET Core, SQLite, and a Python Responses API worker. Run `npm run dev` for the Vite frontend on port 5193 alongside the API on 5194; rebuild before using the compiled frontend again.

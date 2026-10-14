@@ -11,10 +11,10 @@ import {
 import Dialog from './Dialog';
 const cards = [
   {
-    title: 'Start with the team’s actual submission.',
-    body: 'Read the original passages before you assess the idea. Each passage has a stable reference within its submission version.',
+    title: 'Start with the submission.',
+    body: 'Read what the team measured, estimated, and left unanswered. The original narrative stays beside the evidence review.',
     detail:
-      'The Tidewell example has a measured bench trial, an incomplete cost estimate, and open questions about field delivery. Start there to try the full workflow.',
+      'Tidewell reports a bench trial but leaves cost and field delivery questions open. Follow those gaps into the evidence review.',
     Icon: BookOpen,
     label: '01 / Read the submission',
   },
@@ -22,23 +22,23 @@ const cards = [
     title: 'Follow the evidence, one criterion at a time.',
     body: 'The analysis connects each finding to a verbatim passage. Select a quotation to reveal it in the original submission, then decide whether the interpretation holds.',
     detail:
-      '“Evidence described” means the application covers the criterion. It does not mean an external test result has been verified. Missing information becomes a question for the team.',
+      'Open a quotation to highlight its source. Use the questions below each finding to identify what the team should provide next.',
     Icon: Quote,
     label: '02 / Check the evidence',
   },
   {
     title: 'Make an independent recommendation.',
-    body: 'Choose a score for each criterion, explain your reasoning, and recommend a pilot, clarification, or further development. AI never enters the numeric scores.',
+    body: 'Choose a score from 0 to 4 for each criterion, explain your reasoning, and recommend a pilot, clarification, or further development.',
     detail:
-      'Save an unfinished scorecard as a draft. Finalizing requires a complete scorecard and your confirmation; it records a recommendation rather than selecting a prize winner.',
+      'Save a draft to return later. Finalize when the scores, rationale, and recommendation are complete.',
     Icon: ListChecks,
     label: '03 / Make the call',
   },
   {
-    title: 'Leave a review that someone can follow.',
+    title: 'Export the complete case.',
     body: 'Export the case packet with its rubric, submission versions, analyses, recommendation, and event history. A new submission version starts a fresh review.',
     detail:
-      'The three applications are fictional examples. Their authored analyses work without AI; “Run AI analysis” sends the selected narrative and rubric to the configured provider.',
+      'Use Submit revision when a team updates its narrative. Earlier submissions and recommendations remain in the case packet.',
     Icon: FileCheck2,
     label: '04 / Keep the record',
   },

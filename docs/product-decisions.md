@@ -16,7 +16,7 @@ The three steps are **Read submission**, **Review evidence**, and **Score & reco
 
 Evidence links highlight and focus the exact source passage. On desktop, a bounded sticky control panel keeps review actions beside the submission. On phones, the queue starts collapsed and source passages can be opened when needed. Score criteria use native accordions, radio groups, and a shared scale. Secondary history and provenance stay collapsed until requested.
 
-Colors, typography, surfaces, spacing, buttons, focus treatment, and responsive behavior live in `web/styles.css`. The visual hierarchy reserves the strongest treatment for the next action. Labels describe an action or consequence; avoid decorative corner notes and repeating warnings. Keep guidance that helps someone judge or recover, such as explaining that an export includes saved work only.
+The [interface system](design-system.md) documents the official XPRIZE palette, component ownership, and copy rules. `web/tokens.css` owns shared visual values; `web/styles.css` applies them to controls and responsive layouts. The visual hierarchy reserves the strongest treatment for the next action. Labels describe an action or consequence; avoid decorative corner notes and repeating warnings. Keep guidance that helps someone judge or recover, such as explaining that an export includes saved work only.
 
 Every mutation has an observable result: pending analysis, cancellation feedback, saved-draft state, immutable final state, revision number, or export confirmation. Errors remain available until dismissed. Toast expiration pauses on hover or focus. Dialogs restore focus; source links work repeatedly. Dirty scorecards survive step changes and warn before leaving the entry.
 

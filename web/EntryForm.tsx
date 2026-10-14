@@ -43,7 +43,7 @@ export default function EntryForm({
       <p className="dialog-intro">
         {detail
           ? 'The current submission stays in the case history. A new version starts a fresh evidence review and scorecard.'
-          : 'Paste an application or milestone narrative. Separate passages with a blank line so reviewers can cite them precisely.'}
+          : 'Add the team’s application or milestone narrative to the review queue.'}
       </p>
       <form
         onSubmit={async (event) => {
@@ -115,7 +115,7 @@ export default function EntryForm({
           />
         </label>
         <p id="narrative-help" className="field-help">
-          80–16,000 characters. Text stays on this device until you explicitly run an AI analysis.
+          80–16,000 characters. Separate passages with a blank line.
         </p>
         {error && (
           <p role="alert" className="error-panel">

@@ -108,7 +108,7 @@ export default function Scorecard({
       onFeedback(
         finalize
           ? 'Recommendation recorded. This version is now locked and ready to export.'
-          : 'Scorecard draft saved. You can return to it on this device.',
+          : 'Scorecard draft saved.',
       );
     } catch (e) {
       setError(errorText(e));
@@ -125,9 +125,8 @@ export default function Scorecard({
     >
       <div className="scorecard-top">
         <div>
-          <p className="eyebrow">Your assessment</p>
           <h2 id="scorecard-title" ref={resultHeading} tabIndex={-1}>
-            {finalized ? 'Recommendation recorded' : 'Make the call'}
+            {finalized ? 'Recommendation recorded' : 'Score and recommend'}
           </h2>
         </div>
         {finalized ? (
@@ -155,8 +154,8 @@ export default function Scorecard({
       ) : (
         <>
           <p className="section-description">
-            Score the evidence independently. The weighted total comes from your scores, and AI
-            leaves every score blank.
+            Score each criterion from 0 to 4, then explain your recommendation. The criterion
+            weights determine the total.
           </p>
           <details className="scale-guide">
             <summary>How the 0–4 scale works</summary>
@@ -168,10 +167,7 @@ export default function Scorecard({
                 </li>
               ))}
             </ol>
-            <p>
-              Use the criterion description to interpret the scale. A high score needs strong
-              evidence, not polished language.
-            </p>
+            <p>Use the same evidence standard for every submission.</p>
           </details>
           <div className="score-criteria">
             {criteria.map((criterion, index) => (
@@ -238,8 +234,7 @@ export default function Scorecard({
             />
           </label>
           <p id="rationale-help" className="field-help">
-            At least 40 characters to finalize. Identify the evidence that matters and any
-            conditions for moving forward.
+            At least 40 characters to finalize.
           </p>
           <div className="field">
             <label htmlFor="recommendation">Recommendation</label>
