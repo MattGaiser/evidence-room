@@ -16,6 +16,8 @@ A round reviewer needs to understand what an entry actually demonstrates, identi
 8. A missing provider key, timeout, canceled request, or invalid output leaves the submission and scorecard unchanged. The interface offers an accurate recovery action and retains typed work.
 9. Seeded examples work without a key and are labeled example analyses. Real generation is an explicit action. Default tests never use a paid provider.
 10. The queue, evidence links, forms, dialogs, and scorecard work with a keyboard and at narrow and short viewports. Feedback names the result of every non-obvious action.
+11. Evidence review displays one criterion with Previous/Next and direct selection. Page buttons focus a visible heading even after expanding long content; the native selector retains keyboard focus. Assessment pages preserve scores and rationale in both directions and provide a route to missing scores.
+12. Evidence status uses a written label and icon as well as color. Status text and yellow quotation highlights meet a 4.5:1 text contrast ratio in the rendered interface. Automated axe checks and manual browser inspection cover the tested workflow states.
 
 ## Scope
 

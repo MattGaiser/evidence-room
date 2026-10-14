@@ -41,6 +41,7 @@ async function score(page: Page) {
     if ((await criterion.getAttribute('open')) === null) await criterion.locator('summary').click();
     await criterion.getByRole('radio', { name: /2 — Preliminary/ }).check();
   }
+  await page.getByRole('button', { name: '2 Recommendation', exact: true }).click();
   await page
     .getByLabel('Your rationale')
     .fill(
@@ -77,6 +78,7 @@ test('draft survives reload, finalization locks the version, and export contains
   expect(persisted.assessment.finalized).toBe(false);
   await page.reload();
   await page.getByRole('button', { name: /Score & recommend/ }).click();
+  await page.getByRole('button', { name: '2 Recommendation', exact: true }).click();
   await expect(page.getByLabel('Your rationale')).toHaveValue(/field conditions/);
   await page.setViewportSize({ width: 1024, height: 600 });
   await page.getByRole('button', { name: 'Finalize', exact: true }).click();
@@ -186,6 +188,7 @@ test('canceled and failed AI requests preserve the existing analysis and unsaved
   });
   await openEntry(page);
   await page.getByRole('button', { name: /Score & recommend/ }).click();
+  await page.getByRole('button', { name: '2 Recommendation', exact: true }).click();
   await page
     .getByLabel('Your rationale')
     .fill('Keep this independent reasoning while the analysis request is canceled or fails.');
@@ -387,6 +390,112 @@ test('a delayed queue refresh cannot replace a newer saved scorecard status', as
   await expect(page.getByText('Draft saved on this device', { exact: true })).toBeVisible();
 });
 
+test('criterion pagination supports keyboard focus, direct selection, and backtracking', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1024, height: 600 });
+  await page.route('**/api/entries/tidewell', async (route) => {
+    const response = await route.fetch();
+    const detail = await response.json();
+    detail.review.content.summary =
+      'The trial reports measured output, with field performance and cost questions still open. '.repeat(
+        15,
+      );
+    await route.fulfill({ response, json: detail });
+  });
+  await openEntry(page);
+  await page.getByRole('button', { name: 'Review the evidence', exact: true }).click();
+  await page.getByText('Submission summary', { exact: true }).click();
+  const selector = page.getByLabel('Choose a criterion');
+  await selector.focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(selector).toHaveValue('1');
+  await expect(selector).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(selector).toHaveValue('2');
+  await expect(selector).toBeFocused();
+  await selector.selectOption('0');
+  await expect(page.getByRole('button', { name: 'Previous', exact: true })).toBeDisabled();
+  for (const name of ['Cost & resources', 'Pilot delivery', 'Community benefit']) {
+    await page.getByRole('button', { name: 'Next criterion', exact: true }).focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('heading', { name, exact: true })).toBeFocused();
+    await expect(page.getByRole('heading', { name, exact: true })).toBeInViewport({ ratio: 1 });
+    await expect(page.locator('.finding')).toHaveCount(1);
+  }
+  await page.getByRole('button', { name: 'Previous', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Pilot delivery', exact: true })).toBeFocused();
+  await page.getByLabel('Choose a criterion').selectOption('0');
+  await page.locator('.evidence-quote').first().click();
+  await expect(page.locator('#passage-p2 mark')).toBeVisible();
+  await page.getByRole('button', { name: /Score & recommend/ }).click();
+  await page.getByRole('button', { name: 'Next: recommendation', exact: true }).click();
+  await page
+    .getByLabel('Your rationale')
+    .fill('Keep this reasoning while returning to an unfinished score.');
+  await page.getByRole('button', { name: 'Complete missing scores', exact: true }).click();
+  await expect(page.locator('#score-criterion-evidence input').first()).toBeFocused();
+  await page.getByRole('radio', { name: /2 — Preliminary/ }).check();
+  await page.getByRole('button', { name: '2 Recommendation', exact: true }).click();
+  await expect(page.getByLabel('Your rationale')).toHaveValue(/Keep this reasoning/);
+  await page.getByRole('button', { name: 'Back to scores', exact: true }).click();
+  await expect(page.getByRole('radio', { name: /2 — Preliminary/ })).toBeChecked();
+});
+
+test('status badges and yellow quotations have AA text contrast and non-color labels', async ({
+  page,
+}) => {
+  const backgrounds = [];
+  const contrast = (foreground: string, background: string) => {
+    const luminance = (value: string) => {
+      const channels = (value.match(/[\d.]+/g) ?? [])
+        .slice(0, 3)
+        .map(Number)
+        .map((n) => n / 255)
+        .map((n) => (n <= 0.04045 ? n / 12.92 : ((n + 0.055) / 1.055) ** 2.4));
+      return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+    };
+    const a = luminance(foreground),
+      b = luminance(background);
+    return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+  };
+  for (const [entry, index, label] of [
+    ['tidewell', '0', 'Needs detail'],
+    ['commons', '2', 'Evidence described'],
+    ['clearcurrent', '1', 'Not provided'],
+  ]) {
+    await page.goto(`/?entry=${entry}`);
+    await page.getByRole('button', { name: 'Review the evidence', exact: true }).click();
+    await page.getByLabel('Choose a criterion').selectOption(index);
+    const badge = page.locator('.coverage');
+    await expect(badge).toHaveText(label);
+    await expect(badge.locator('svg')).toHaveAttribute('aria-hidden', 'true');
+    const colors = await badge.evaluate((element) => {
+      const css = getComputedStyle(element);
+      return { foreground: css.color, background: css.backgroundColor };
+    });
+    expect(contrast(colors.foreground, colors.background)).toBeGreaterThanOrEqual(4.5);
+    backgrounds.push(colors.background);
+    expect(
+      (
+        await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+          .analyze()
+      ).violations,
+    ).toEqual([]);
+    if (entry === 'tidewell') {
+      await page.locator('.evidence-quote').first().click();
+      const colors = await page.locator('mark').evaluate((element) => {
+        const css = getComputedStyle(element);
+        return { foreground: css.color, background: css.backgroundColor };
+      });
+      expect(colors.background).toBe('rgb(255, 235, 128)');
+      expect(contrast(colors.foreground, colors.background)).toBeGreaterThanOrEqual(4.5);
+    }
+  }
+  expect(new Set(backgrounds).size).toBe(3);
+});
+
 test('walkthrough is paginated, optional, replayable, and restores keyboard focus', async ({
   page,
 }) => {
@@ -433,6 +542,7 @@ for (const width of [320, 1440])
     });
     await page.locator('.evidence-quote').first().click();
     await expect(page.locator('#passage-p2 mark')).toBeVisible();
+    await page.getByLabel('Choose a criterion').selectOption('3');
     await page.getByRole('button', { name: 'Continue to your assessment' }).click();
     await expect(
       page.getByRole('heading', { name: 'Score and recommend', exact: true }),
@@ -442,6 +552,7 @@ for (const width of [320, 1440])
     ).toBeInViewport({
       ratio: 1,
     });
+    await page.getByRole('button', { name: '2 Recommendation', exact: true }).click();
     expect(
       (
         await new AxeBuilder({ page })
@@ -467,6 +578,11 @@ for (const width of [320, 1440])
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
         true,
       );
+      const title = await page.locator('#scorecard-title').boundingBox();
+      const total = await page.locator('.score-total').boundingBox();
+      expect(title).not.toBeNull();
+      expect(total).not.toBeNull();
+      expect(total?.y).toBeGreaterThanOrEqual((title?.y ?? 0) + (title?.height ?? 0));
       for (const button of [
         page.getByRole('button', { name: 'How it works', exact: true }),
         page.getByRole('button', { name: 'Finalize', exact: true }),

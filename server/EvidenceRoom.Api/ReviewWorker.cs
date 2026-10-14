@@ -30,7 +30,6 @@ public sealed class ReviewWorker(string root, Store store)
             var info = new ProcessStartInfo(executable) { RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = root };
             info.ArgumentList.Add(Path.Combine(root, "worker", "review.py"));
             info.Environment["PYTHONIOENCODING"] = "utf-8";
-            info.Environment["OPENAI_MODEL"] = Environment.GetEnvironmentVariable("OPENAI_MODEL") ?? "gpt-4o-mini-2024-07-18";
             using var process = new Process { StartInfo = info };
             try { process.Start(); }
             catch (System.ComponentModel.Win32Exception) { throw new DomainError(503, "Python could not start. Set PYTHON_EXECUTABLE to a Python 3.11+ executable."); }

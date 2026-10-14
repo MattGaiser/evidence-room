@@ -187,7 +187,8 @@ svg {
 .field input,
 .field textarea,
 .field select,
-.queue-filter select {
+.queue-filter select,
+.criterion-jump select {
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-control);
   background: var(--surface);
@@ -414,6 +415,9 @@ main:focus {
 .case-controls {
   min-width: 0;
   scroll-margin-top: 24px;
+}
+.case-controls [tabindex='-1'] {
+  scroll-margin-block: var(--space-4);
 }
 
 .loading-panel {
@@ -701,7 +705,7 @@ main:focus {
 .finding {
   border-bottom: 1px solid var(--line);
 }
-.finding summary {
+.finding-heading {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -711,20 +715,14 @@ main:focus {
   font-weight: 700;
   font-size: 13px;
 }
-.finding summary::-webkit-details-marker {
-  display: none;
-}
-.finding summary > svg {
-  margin-left: auto;
-}
-.finding:not([open]) summary > svg {
-  transform: rotate(-90deg);
-}
+
 .coverage {
   display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
   border-radius: var(--radius-control);
   padding: 4px 7px;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   line-height: 1.5;
   margin-left: auto;
@@ -741,9 +739,7 @@ main:focus {
   color: var(--error);
   background: var(--error-bg);
 }
-.finding summary .coverage + svg {
-  margin-left: 0;
-}
+
 .finding-content {
   padding: 0 24px 24px;
 }
@@ -864,12 +860,87 @@ main:focus {
   font-size: 12px;
 }
 
+.review-overview summary {
+  cursor: pointer;
+  font-size: var(--caption);
+  font-weight: 700;
+}
+.review-overview p {
+  margin-top: var(--space-3);
+}
+.criterion-jump {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--line);
+  font-size: var(--caption);
+  font-weight: 700;
+}
+.finding-heading h4 {
+  font-size: 16px;
+  overflow-wrap: anywhere;
+}
+.criterion-pager {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1.5fr);
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--line);
+}
+.criterion-pager > span {
+  color: var(--muted);
+  font-size: var(--caption);
+  text-align: center;
+}
+.criterion-pager .button {
+  min-width: 0;
+  padding-inline: var(--space-3);
+  flex-wrap: wrap;
+  overflow-wrap: anywhere;
+}
+.assessment-pages {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
+}
+.assessment-pages button {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--control-height);
+  padding: var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.assessment-pages button[aria-current='step'] {
+  color: var(--on-brand);
+  background: var(--brand);
+}
+.assessment-page-title {
+  font-size: 18px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  margin-bottom: var(--space-4);
+}
+.missing-scores {
+  padding: var(--space-3) var(--space-4);
+  background: var(--warning-bg);
+  color: var(--warning);
+  border-radius: var(--radius-control);
+  font-size: 13px;
+}
+
 /* Human scorecard */
 .scorecard {
   padding: 25px;
 }
 .scorecard-top {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 20px;
@@ -1162,7 +1233,7 @@ main:focus {
   outline-color: var(--on-brand);
 }
 .error-toast {
-  background: var(--brand);
+  background: var(--error);
 }
 
 /* Dialogs and optional walkthrough */
@@ -1411,13 +1482,10 @@ main:focus {
   .passage p {
     font-size: 13px;
   }
-  .finding summary,
+  .finding-heading,
   .finding-content,
   .analysis-actions {
     padding-inline: 18px;
-  }
-  .coverage {
-    font-size: 10px;
   }
   .scorecard {
     padding: 21px;
@@ -1468,6 +1536,14 @@ main:focus {
   }
 }
 @media (max-width: 760px) {
+  .criterion-pager {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding-inline: var(--space-4);
+  }
+  .criterion-pager > span {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
   .app-header {
     flex-wrap: wrap;
     min-height: 68px;
@@ -1625,16 +1701,13 @@ main:focus {
   .scorecard {
     padding: 23px;
   }
-  .coverage {
-    font-size: 11px;
-  }
   .eyebrow {
     font-size: 11px;
   }
   .analysis-summary {
     padding: 20px;
   }
-  .finding summary {
+  .finding-heading {
     padding: 20px;
   }
   .finding-content {

@@ -154,9 +154,11 @@ def review(request, opener=urllib.request.urlopen):
     key = os.environ.get("OPENAI_API_KEY", "")
     if not key:
         raise ReviewError("AI is not configured. Example analyses and manual scoring remain available.")
-    model = os.environ.get("OPENAI_MODEL", "gpt-4o-mini-2024-07-18")
+    model = os.environ.get("OPENAI_MODEL", "gpt-5.6-terra")
     payload = {"model": model, "store": False, "instructions": INSTRUCTIONS, "input": json.dumps(request),
                "max_output_tokens": 3500, "text": {"format": {"type": "json_schema", "name": "evidence_review", "strict": True, "schema": schema(request)}}}
+    if model in ("gpt-5.6-terra", "gpt-5.4-mini") or model.startswith("gpt-5.4-mini-"):
+        payload["reasoning"] = {"effort": "none"}
     http = urllib.request.Request("https://api.openai.com/v1/responses", data=json.dumps(payload).encode(),
                                   headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"}, method="POST")
     try:

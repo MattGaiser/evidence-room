@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
+  ArrowLeft,
   ArrowRight,
   Check,
   CircleCheck,
@@ -11,6 +12,7 @@ import {
 import { api, errorText, outcomeLabels } from './types';
 import type { Criterion, Detail } from './types';
 import Dialog from './Dialog';
+import { focusPanelHeading } from './focus';
 
 const scale = [
   'Not addressed',
@@ -53,6 +55,29 @@ export default function Scorecard({
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState('');
+  const [phase, setPhase] = useState(0);
+  const phaseHeading = useRef<HTMLHeadingElement>(null);
+  const pendingCriterion = useRef<string | null>(null);
+  const previousPhase = useRef(phase);
+  useEffect(() => {
+    if (previousPhase.current === phase) return;
+    previousPhase.current = phase;
+    const frame = requestAnimationFrame(() => {
+      if (phase === 0 && pendingCriterion.current) {
+        const criterion = document.getElementById(
+          pendingCriterion.current,
+        ) as HTMLDetailsElement | null;
+        pendingCriterion.current = null;
+        if (criterion) {
+          criterion.open = true;
+          const input = criterion.querySelector('input');
+          input?.focus({ preventScroll: true });
+          input?.scrollIntoView({ block: 'center' });
+        }
+      } else focusPanelHeading(phaseHeading.current);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [phase]);
   const reviewId = detail.review?.id ?? null;
   const previousReview = useRef(reviewId);
   useEffect(() => {
@@ -71,6 +96,7 @@ export default function Scorecard({
     }
   }, [finalized]);
   const complete = criteria.every((c) => scores[c.id] !== null);
+  const missingScores = criteria.filter((criterion) => scores[criterion.id] === null);
   const total = complete
     ? criteria.reduce((n, c) => n + ((scores[c.id] ?? 0) / 4) * c.weight, 0)
     : null;
@@ -153,120 +179,166 @@ export default function Scorecard({
         </div>
       ) : (
         <>
-          <p className="section-description">
-            Score each criterion from 0 to 4, then explain your recommendation. The criterion
-            weights determine the total.
-          </p>
-          <details className="scale-guide">
-            <summary>How the 0–4 scale works</summary>
-            <ol start={0}>
-              {scale.map((label, index) => (
-                <li key={label}>
-                  <strong>{index}</strong>
-                  <span>{label}</span>
-                </li>
-              ))}
-            </ol>
-            <p>Use the same evidence standard for every submission.</p>
-          </details>
-          <div className="score-criteria">
-            {criteria.map((criterion, index) => (
-              <details
-                className="score-criterion"
-                name="score-criterion"
-                key={criterion.id}
-                open={index === 0 ? true : undefined}
-              >
-                <summary>
-                  <span>
-                    {criterion.name}
-                    <small>{criterion.weight}% of total</small>
-                  </span>
-                  <strong>
-                    {scores[criterion.id] ?? '—'}
-                    <small>/4</small>
-                  </strong>
-                </summary>
-                <div className="score-criterion-body">
-                  <p>{criterion.description}</p>
-                  <fieldset className="score-options">
-                    <legend className="visually-hidden">{criterion.name} score</legend>
-                    {scale.map((label, value) => (
-                      <label
-                        key={label}
-                        className={scores[criterion.id] === value ? 'selected' : ''}
-                      >
-                        <input
-                          type="radio"
-                          disabled={busy}
-                          name={`score-${criterion.id}`}
-                          value={value}
-                          checked={scores[criterion.id] === value}
-                          onChange={() => {
-                            setScores((s) => ({ ...s, [criterion.id]: value }));
-                            changed();
-                          }}
-                        />
-                        <span aria-hidden="true">{value}</span>
-                        <span className="visually-hidden">
-                          {value} — {label}
-                        </span>
-                      </label>
-                    ))}
-                  </fieldset>
-                </div>
-              </details>
-            ))}
-          </div>
-          <label className="field">
-            <span>Your rationale</span>
-            <textarea
-              disabled={busy}
-              rows={4}
-              maxLength={4000}
-              value={rationale}
-              onChange={(e) => {
-                setRationale(e.target.value);
-                changed();
-              }}
-              placeholder="Explain how the evidence and its limitations support your recommendation."
-              aria-describedby="rationale-help"
-            />
-          </label>
-          <p id="rationale-help" className="field-help">
-            At least 40 characters to finalize.
-          </p>
-          <div className="field">
-            <label htmlFor="recommendation">Recommendation</label>
-            <select
-              disabled={busy}
-              id="recommendation"
-              value={outcome}
-              onChange={(e) => {
-                setOutcome(e.target.value);
-                changed();
-              }}
+          <nav className="assessment-pages" aria-label="Assessment pages">
+            <button
+              type="button"
+              aria-current={phase === 0 ? 'step' : undefined}
+              onClick={() => setPhase(0)}
             >
-              <option value="">Choose a recommendation</option>
-              {Object.entries(outcomeLabels).map(([key, label]) => (
-                <option value={key} key={key}>
-                  {label}
-                </option>
+              1 Scores
+            </button>
+            <button
+              type="button"
+              aria-current={phase === 1 ? 'step' : undefined}
+              onClick={() => setPhase(1)}
+            >
+              2 Recommendation
+            </button>
+          </nav>
+          <h3 className="assessment-page-title" ref={phaseHeading} tabIndex={-1}>
+            {phase === 0 ? 'Score the four criteria' : 'Explain your recommendation'}
+          </h3>
+          <div hidden={phase !== 0}>
+            <p className="section-description">
+              Choose a score from 0 to 4 for each criterion. Use the scale to match the strength of
+              the evidence.
+            </p>
+            <details className="scale-guide">
+              <summary>How the 0–4 scale works</summary>
+              <ol start={0}>
+                {scale.map((label, index) => (
+                  <li key={label}>
+                    <strong>{index}</strong>
+                    <span>{label}</span>
+                  </li>
+                ))}
+              </ol>
+              <p>Use the same evidence standard for every submission.</p>
+            </details>
+            <div className="score-criteria">
+              {criteria.map((criterion, index) => (
+                <details
+                  className="score-criterion"
+                  id={`score-criterion-${criterion.id}`}
+                  name="score-criterion"
+                  key={criterion.id}
+                  open={index === 0 ? true : undefined}
+                >
+                  <summary>
+                    <span>
+                      {criterion.name}
+                      <small>{criterion.weight}% of total</small>
+                    </span>
+                    <strong>
+                      {scores[criterion.id] ?? '—'}
+                      <small>/4</small>
+                    </strong>
+                  </summary>
+                  <div className="score-criterion-body">
+                    <p>{criterion.description}</p>
+                    <fieldset className="score-options">
+                      <legend className="visually-hidden">{criterion.name} score</legend>
+                      {scale.map((label, value) => (
+                        <label
+                          key={label}
+                          className={scores[criterion.id] === value ? 'selected' : ''}
+                        >
+                          <input
+                            type="radio"
+                            disabled={busy}
+                            name={`score-${criterion.id}`}
+                            value={value}
+                            checked={scores[criterion.id] === value}
+                            onChange={() => {
+                              setScores((s) => ({ ...s, [criterion.id]: value }));
+                              changed();
+                            }}
+                          />
+                          <span aria-hidden="true">{value}</span>
+                          <span className="visually-hidden">
+                            {value} — {label}
+                          </span>
+                        </label>
+                      ))}
+                    </fieldset>
+                  </div>
+                </details>
               ))}
-            </select>
+            </div>
           </div>
-          <label className="confirmation">
-            <input
-              type="checkbox"
-              disabled={busy}
-              checked={confirmed}
-              onChange={(e) => {
-                setConfirmed(e.target.checked);
-                changed();
-              }}
-            />
-            <span>I checked the submission and made an independent assessment.</span>
-          </label>
+          <div hidden={phase !== 1}>
+            {missingScores.length > 0 && (
+              <div className="missing-scores">
+                <p>
+                  {missingScores.length}{' '}
+                  {missingScores.length === 1
+                    ? 'criterion still needs a score'
+                    : 'criteria still need scores'}
+                  .
+                </p>
+                <button
+                  type="button"
+                  className="text-button"
+                  onClick={() => {
+                    pendingCriterion.current = `score-criterion-${missingScores[0].id}`;
+                    setPhase(0);
+                  }}
+                >
+                  Complete missing scores
+                  <ArrowLeft size={16} />
+                </button>
+              </div>
+            )}
+            <label className="field">
+              <span>Your rationale</span>
+              <textarea
+                disabled={busy}
+                rows={4}
+                maxLength={4000}
+                value={rationale}
+                onChange={(e) => {
+                  setRationale(e.target.value);
+                  changed();
+                }}
+                placeholder="Explain how the evidence and its limitations support your recommendation."
+                aria-describedby="rationale-help"
+              />
+            </label>
+            <p id="rationale-help" className="field-help">
+              At least 40 characters to finalize.
+            </p>
+            <div className="field">
+              <label htmlFor="recommendation">Recommendation</label>
+              <select
+                disabled={busy}
+                id="recommendation"
+                value={outcome}
+                onChange={(e) => {
+                  setOutcome(e.target.value);
+                  changed();
+                }}
+              >
+                <option value="">Choose a recommendation</option>
+                {Object.entries(outcomeLabels).map(([key, label]) => (
+                  <option value={key} key={key}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <label className="confirmation">
+              <input
+                type="checkbox"
+                disabled={busy}
+                checked={confirmed}
+                onChange={(e) => {
+                  setConfirmed(e.target.checked);
+                  changed();
+                }}
+              />
+              <span>I checked the submission and made an independent assessment.</span>
+            </label>
+          </div>
           {error && (
             <p className="error-panel" role="alert">
               {error}
@@ -288,6 +360,12 @@ export default function Scorecard({
                     : 'No scores entered yet'}
             </p>
             <div>
+              {phase === 1 && (
+                <button type="button" className="button secondary" onClick={() => setPhase(0)}>
+                  <ArrowLeft size={16} />
+                  Back to scores
+                </button>
+              )}
               <button
                 type="button"
                 className="button secondary"
@@ -297,17 +375,24 @@ export default function Scorecard({
                 <Save size={16} />
                 Save draft
               </button>
-              <button
-                type="button"
-                className="button primary"
-                disabled={busy || analysisRunning || !ready}
-                onClick={() => setConfirming(true)}
-              >
-                Finalize
-                <ArrowRight size={16} />
-              </button>
+              {phase === 0 ? (
+                <button type="button" className="button primary" onClick={() => setPhase(1)}>
+                  Next: recommendation
+                  <ArrowRight size={16} />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="button primary"
+                  disabled={busy || analysisRunning || !ready}
+                  onClick={() => setConfirming(true)}
+                >
+                  Finalize
+                  <ArrowRight size={16} />
+                </button>
+              )}
             </div>
-            {!ready && (
+            {phase === 1 && !ready && (
               <p className="field-help">
                 To finalize: complete four scores, a rationale, a recommendation, and the
                 confirmation.

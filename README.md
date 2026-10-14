@@ -22,7 +22,7 @@ Open **[http://127.0.0.1:5194](http://127.0.0.1:5194)**. Keep the terminal runni
 
 On Windows, stop the running server before `npm run build` or `npm run check`; Windows locks assemblies while they are in use. Use `npm run dev` alongside the API for frontend changes.
 
-Start with **Tidewell Collective → Review the evidence**. Click a quoted passage to highlight its source, then choose **Score & recommend**. Save an incomplete draft or complete four scores, a rationale, a recommendation, and the confirmation to finalize. Export downloads JSON containing the rubric, all submission versions and analyses, saved assessment, and event history.
+Start with **Tidewell Collective → Review the evidence**. Review one criterion at a time using Previous/Next or the criterion selector. Click a quotation to highlight its source in yellow. **Score & recommend** has two pages: enter four scores, then write your rationale and recommendation. Save a draft from either page. Finalization requires the complete scorecard and confirmation. Export downloads JSON containing the rubric, all submission versions and analyses, saved assessment, and event history.
 
 The default workspace needs no API key. Its analyses are labeled **Example analysis**. New submissions can be reviewed manually. Data persists in `.local/evidence.sqlite`; restarting the server retains it. To start a separate workspace, set `EVIDENCE_DB` to a new SQLite file before starting.
 
@@ -32,11 +32,13 @@ Set `OPENAI_API_KEY` in the server process environment, then restart `npm start`
 
 | Setting               | Default                                  | Purpose                                                              |
 | --------------------- | ---------------------------------------- | -------------------------------------------------------------------- |
-| `OPENAI_MODEL`        | `gpt-4o-mini-2024-07-18`                 | Structured-output model; alternatives must support the same contract |
+| `OPENAI_MODEL`        | `gpt-5.6-terra`                          | Structured-output model; alternatives must support the same contract |
 | `EVIDENCE_AI_LIMIT`   | `10`                                     | Durable total request-attempt allowance for this database; 0–100     |
 | `EVIDENCE_DISABLE_AI` | unset                                    | Set to `1` to disable live requests                                  |
 | `PYTHON_EXECUTABLE`   | `python` on Windows, `python3` elsewhere | Worker executable                                                    |
 | `EVIDENCE_DB`         | `.local/evidence.sqlite`                 | SQLite file location                                                 |
+
+The default is [GPT-5.6 Terra](https://developers.openai.com/api/docs/models/gpt-5.6-terra), using strict structured output and reasoning effort `none` for this bounded extraction task. The Python worker owns the default; `OPENAI_MODEL` remains an explicit override. Older model overrides receive no unsupported reasoning parameter.
 
 One analysis runs at a time. Each attempted request consumes an allowance slot, including failures and cancellations; restarting does not reset it. There are no automatic paid retries. Provider requests have a 30-second timeout, enclosed by a 35-second worker deadline. An invalid quotation, refusal, malformed result, timeout, or stale submission leaves the previous saved analysis intact. Cancellation can still incur a provider charge; canceling after the server commits does not undo an already saved review.
 
@@ -55,7 +57,7 @@ Optional paid verification is separate:
 npm run test:live -- --confirm-paid
 ```
 
-It makes up to three small provider requests through a running local server, including one prompt-injection case, and checks persisted exports. It writes ignored results under `.local/`. Only run it with the key owner's approval. Three such full-path checks were completed during development; that small evaluation is not evidence of general judging accuracy.
+It makes up to three small provider requests through a running local server, including one prompt-injection case, and checks persisted exports. It writes ignored results under `.local/`. Only run it with the key owner's approval. Three such full-path checks were completed during development. A separate browser check of the current default, GPT-5.6 Terra, saved all four criteria, validated 15 source quotations, preserved the human assessment, and verified the exported record. This small evaluation is not evidence of general judging accuracy.
 
 ## Design and handoff
 

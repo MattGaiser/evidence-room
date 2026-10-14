@@ -19,6 +19,7 @@ import SubmissionQueue from './SubmissionQueue';
 import SubmissionReader from './SubmissionReader';
 import EvidenceReview from './EvidenceReview';
 import { formatDate } from './format';
+import { focusPanelHeading } from './focus';
 import Scorecard from './Scorecard';
 import Walkthrough from './Walkthrough';
 import Notice from './Notice';
@@ -64,7 +65,6 @@ export default function App() {
     setTab(next);
     if (window.matchMedia('(max-width: 760px)').matches) setSourceExpanded(next === 'submission');
   };
-  const controls = useRef<HTMLDivElement>(null);
   const previousTab = useRef(tab);
   useEffect(() => {
     if (previousTab.current === tab) return;
@@ -75,10 +75,7 @@ export default function App() {
         evidence: 'analysis-title',
         decision: 'scorecard-title',
       }[tab];
-      if (!controls.current || !document.getElementById(headingId)) return;
-      controls.current.scrollTop = 0;
-      document.getElementById(headingId)?.focus({ preventScroll: true });
-      controls.current.scrollIntoView({ block: 'start' });
+      focusPanelHeading(document.getElementById(headingId));
     });
     return () => cancelAnimationFrame(frame);
   }, [tab]);
@@ -364,7 +361,7 @@ export default function App() {
                     if (canLeave()) setForm('revision');
                   }}
                 />
-                <div className="case-controls" ref={controls}>
+                <div className="case-controls">
                   <section
                     hidden={tab !== 'submission'}
                     className="panel start-review"

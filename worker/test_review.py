@@ -84,6 +84,8 @@ class ReviewContractTests(unittest.TestCase):
                 return json.dumps({"status": "completed", "output": [{"content": [{"type": "output_text", "text": json.dumps(parent.content)}]}]}).encode()
         def opener(request, timeout):
             payload = json.loads(request.data)
+            self.assertEqual("gpt-5.6-terra", payload["model"])
+            self.assertEqual({"effort": "none"}, payload["reasoning"])
             self.assertFalse(payload["store"])
             self.assertEqual(3500, payload["max_output_tokens"])
             self.assertEqual(30, timeout)
@@ -92,6 +94,7 @@ class ReviewContractTests(unittest.TestCase):
             self.assertIn("untrusted", payload["instructions"])
             return Response()
         with patch.dict(os.environ, {"OPENAI_API_KEY": "test-only"}):
+            os.environ.pop("OPENAI_MODEL", None)
             self.assertEqual(self.content, review(self.request, opener=opener)["content"])
 
     def test_schema_pins_criterion_and_paragraph_ids(self):
@@ -99,6 +102,15 @@ class ReviewContractTests(unittest.TestCase):
         finding = contract["properties"]["criteria"]["items"]
         self.assertFalse(finding["additionalProperties"])
         self.assertEqual([c["id"] for c in DATA["criteria"]], finding["properties"]["criterionId"]["enum"])
+
+    def test_supported_model_override_preserves_compatible_parameters(self):
+        def opener(request, timeout):
+            payload = json.loads(request.data)
+            self.assertEqual("gpt-4.1", payload["model"])
+            self.assertNotIn("reasoning", payload)
+            return io.BytesIO(json.dumps({"status": "completed", "output": [{"content": [{"type": "output_text", "text": json.dumps(self.content)}]}]}).encode())
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-only", "OPENAI_MODEL": "gpt-4.1"}):
+            self.assertEqual("gpt-4.1", review(self.request, opener=opener)["model"])
 
     def test_escaped_maximum_unicode_input_reaches_validation(self):
         request = dict(self.request, paragraphs=[{"id": "p1", "text": "\u6c34" * 16000}])
