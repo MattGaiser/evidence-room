@@ -26,6 +26,17 @@ class ReviewContractTests(unittest.TestCase):
         with self.assertRaises(ReviewError):
             validate_review(self.content, self.request)
 
+    def test_each_quote_requires_a_bounded_explanation(self):
+        for explanation in [None, "", "   ", 42, {}, "x" * 801]:
+            with self.subTest(explanation=explanation):
+                content = copy.deepcopy(self.content)
+                content["criteria"][0]["evidence"][0]["explanation"] = explanation
+                with self.assertRaises(ReviewError):
+                    validate_review(content, self.request)
+        del self.content["criteria"][0]["evidence"][0]["explanation"]
+        with self.assertRaises(ReviewError):
+            validate_review(self.content, self.request)
+
     def test_real_quote_in_wrong_passage_rejected(self):
         self.content["criteria"][0]["evidence"][0]["paragraphId"] = "p1"
         with self.assertRaises(ReviewError):
@@ -102,6 +113,9 @@ class ReviewContractTests(unittest.TestCase):
         finding = contract["properties"]["criteria"]["items"]
         self.assertFalse(finding["additionalProperties"])
         self.assertEqual([c["id"] for c in DATA["criteria"]], finding["properties"]["criterionId"]["enum"])
+        citation = finding["properties"]["evidence"]["items"]
+        self.assertIn("explanation", citation["required"])
+        self.assertEqual(800, citation["properties"]["explanation"]["maxLength"])
 
     def test_supported_model_override_preserves_compatible_parameters(self):
         def opener(request, timeout):

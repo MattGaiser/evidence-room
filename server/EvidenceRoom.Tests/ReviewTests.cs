@@ -1,4 +1,6 @@
 using Microsoft.Data.Sqlite;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace EvidenceRoom.Tests;
 
@@ -124,6 +126,75 @@ public sealed class ReviewTests : IDisposable
         var bad = content with { Criteria = content.Criteria.Select((c, i) => i == 0 ? c with { Evidence = [new("p2", "Independently verified and certified.")] } : c).ToArray() };
         Assert.Equal(502, Assert.Throws<DomainError>(() => db.SaveReview("tidewell", 1, bad, "test-provider")).Status);
         Assert.Equal(entry.Review?.Id, db.Get("tidewell").Review?.Id);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void MissingQuoteExplanationCannotReplaceSavedAnalysis(string? explanation)
+    {
+        var db = Database(); var original = db.Get("tidewell");
+        var content = original.Review!.Content;
+        var first = content.Criteria[0];
+        var invalid = content with { Criteria = content.Criteria.Select((c, i) => i == 0 ? c with { Evidence = [first.Evidence[0] with { Explanation = explanation }] } : c).ToArray() };
+        Assert.Equal(502, Assert.Throws<DomainError>(() => db.SaveReview("tidewell", 1, invalid, "test-provider")).Status);
+        Assert.Equal(original.Review.Id, db.Get("tidewell").Review?.Id);
+    }
+
+    [Fact]
+    public void QuoteExplanationsPersistIntoExportAndOversizedNotesFail()
+    {
+        var db = Database(); var content = competition.Submissions[1].ExampleReview;
+        var saved = db.SaveReview("commons", 1, content, "test-provider");
+        var packet = JsonDocument.Parse(Wire.Pack(Database().Export("commons"))).RootElement;
+        var review = packet.GetProperty("current").GetProperty("review");
+        Assert.Equal(Rules.PromptVersion, review.GetProperty("promptVersion").GetString());
+        var notes = review.GetProperty("content").GetProperty("criteria")[2].GetProperty("evidence");
+        Assert.Equal(2, notes.GetArrayLength());
+        Assert.Equal(content.Criteria[2].Evidence[0].Explanation, notes[0].GetProperty("explanation").GetString());
+        Assert.Equal(content.Criteria[2].Evidence[1].Explanation, notes[1].GetProperty("explanation").GetString());
+        var oversized = content with { Criteria = content.Criteria.Select((c, i) => i == 0 ? c with { Evidence = [c.Evidence[0] with { Explanation = new string('x', 801) }] } : c).ToArray() };
+        Assert.Throws<DomainError>(() => db.SaveReview("commons", 1, oversized, "test-provider"));
+        Assert.Equal(saved.Review?.Id, db.Get("commons").Review?.Id);
+    }
+
+    [Fact]
+    public void LegacyReviewsStayReadableAndOnlyUnassessedExamplesReceiveNewNotes()
+    {
+        var db = Database(); var final = db.Get("tidewell"); var draft = db.Get("clearcurrent");
+        db.SaveAssessment("tidewell", Score(reviewId: final.Review?.Id, finalize: true));
+        db.SaveAssessment("clearcurrent", Score(reviewId: draft.Review?.Id));
+        var previousExample = db.Get("commons").Review;
+        using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = Path.Combine(directory, "test.sqlite") }.ToString()))
+        {
+            connection.Open();
+            foreach (var seed in competition.Submissions)
+            {
+                var legacy = JsonNode.Parse(Wire.Pack(seed.ExampleReview))!;
+                foreach (var criterion in legacy["criteria"]!.AsArray())
+                    foreach (var cite in criterion!["evidence"]!.AsArray()) cite!.AsObject().Remove("explanation");
+                using var update = connection.CreateCommand();
+                update.CommandText = "UPDATE reviews SET prompt='evidence-review-v1', content=$content WHERE entry_id=$id";
+                update.Parameters.AddWithValue("$content", legacy.ToJsonString());
+                update.Parameters.AddWithValue("$id", seed.Id);
+                update.ExecuteNonQuery();
+            }
+        }
+        var upgraded = Database();
+        Assert.Equal(final.Review?.Id, upgraded.Get("tidewell").Review?.Id);
+        Assert.True(upgraded.Get("tidewell").Assessment?.Finalized);
+        Assert.Null(upgraded.Get("tidewell").Review?.Content.Criteria[0].Evidence[0].Explanation);
+        Assert.Equal(draft.Review?.Id, upgraded.Get("clearcurrent").Review?.Id);
+        Assert.NotNull(upgraded.Get("clearcurrent").Assessment);
+        var current = upgraded.Get("commons").Review!;
+        Assert.NotEqual(previousExample?.Id, current.Id);
+        Assert.All(current.Content.Criteria.SelectMany(c => c.Evidence), cite => Assert.False(string.IsNullOrWhiteSpace(cite.Explanation)));
+        Assert.Equal(current.Id, Database().Get("commons").Review?.Id);
+        var history = JsonDocument.Parse(Wire.Pack(upgraded.Export("commons"))).RootElement.GetProperty("reviews");
+        Assert.Equal(2, history.GetArrayLength());
+        Assert.Equal("evidence-review-v1", history[0].GetProperty("promptVersion").GetString());
+        Assert.Equal(JsonValueKind.Null, history[0].GetProperty("content").GetProperty("criteria")[0].GetProperty("evidence")[0].GetProperty("explanation").ValueKind);
     }
 
     [Fact]

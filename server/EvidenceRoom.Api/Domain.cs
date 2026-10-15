@@ -16,7 +16,8 @@ public sealed class DomainError(int status, string message) : Exception(message)
 
 public record Criterion(string Id, string Name, int Weight, string Description);
 public record Paragraph(string Id, string Text);
-public record Citation(string ParagraphId, string Quote);
+// Nullable only for reading reviews saved before quote explanations were introduced.
+public record Citation(string ParagraphId, string Quote, string? Explanation = null);
 public record ReviewFlag(string Kind, string ParagraphId, string Quote, string Message);
 public record ReviewContent(string Summary, CriterionFinding[] Criteria, ReviewFlag[] Flags);
 public record CriterionFinding(string CriterionId, string Status, string Finding, Citation[] Evidence, string? Question);
@@ -34,7 +35,7 @@ public record AssessmentInput(int ExpectedRevision, int ExpectedVersion, string?
 
 public static class Rules
 {
-    public const string PromptVersion = "evidence-review-v1";
+    public const string PromptVersion = "evidence-review-v2";
     public static Paragraph[] ValidateEntry(EntryInput input)
     {
         if (string.IsNullOrWhiteSpace(input.Team) || input.Team.Trim().Length > 80)
@@ -65,7 +66,12 @@ public static class Rules
             if (finding.Status != "documented" && string.IsNullOrWhiteSpace(finding.Question))
                 throw new DomainError(502, "The analysis did not explain how to resolve an evidence gap.");
             if (finding.Question?.Length > 1000) throw new DomainError(502, "The analysis question was too long.");
-            foreach (var citation in finding.Evidence) CheckCitation(citation, paragraphs);
+            foreach (var citation in finding.Evidence)
+            {
+                CheckCitation(citation, paragraphs);
+                if (string.IsNullOrWhiteSpace(citation.Explanation) || citation.Explanation.Length > 800)
+                    throw new DomainError(502, "The analysis did not explain why a quote matters. No analysis was saved.");
+            }
         }
         if (review.Flags.Length > 5) throw new DomainError(502, "The analysis returned too many flags.");
         foreach (var flag in review.Flags)

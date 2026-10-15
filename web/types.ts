@@ -1,11 +1,12 @@
 export type Criterion = { id: string; name: string; weight: number; description: string };
 export type Paragraph = { id: string; text: string };
 export type Citation = { paragraphId: string; quote: string };
+export type EvidenceCitation = Citation & { explanation?: string | null };
 export type Finding = {
   criterionId: string;
   status: 'documented' | 'partial' | 'missing';
   finding: string;
-  evidence: Citation[];
+  evidence: EvidenceCitation[];
   question: string | null;
 };
 export type Review = {
@@ -51,6 +52,7 @@ export type Detail = {
   events: { id: number; revision: number; kind: string; message: string; createdAt: string }[];
 };
 export type Workspace = {
+  sharedDemo?: boolean;
   competition: {
     id: string;
     name: string;

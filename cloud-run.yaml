@@ -1,0 +1,53 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: evidence-room
+  annotations:
+    run.googleapis.com/ingress: all
+    run.googleapis.com/maxScale: '1'
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: '0'
+        autoscaling.knative.dev/maxScale: '1'
+        run.googleapis.com/startup-cpu-boost: 'true'
+    spec:
+      serviceAccountName: evidence-room-runtime@codeforcanada.iam.gserviceaccount.com
+      containerConcurrency: 8
+      timeoutSeconds: 55
+      containers:
+        - image: us-central1-docker.pkg.dev/codeforcanada/cloud-run-source-deploy/evidence-room@sha256:8570198a6c99ee703e01db47f64fd445e8cecc42d49aa551df793b27211071c6
+          ports:
+            - containerPort: 8080
+          resources:
+            limits:
+              cpu: '1'
+              memory: 512Mi
+          env:
+            - name: PUBLIC_ORIGINS
+              value: https://evidence-room-gaiser.web.app,https://evidence-room-gaiser.firebaseapp.com,https://evidence-room-464580910450.us-central1.run.app,https://evidence-room-ziq2cxy5xq-uc.a.run.app
+            - name: EVIDENCE_SNAPSHOT_BUCKET
+              value: codeforcanada-evidence-room-state
+            - name: EVIDENCE_AI_LIMIT
+              value: '25'
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: evidence-room-openai-key
+                  key: '1'
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 24
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3

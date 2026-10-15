@@ -754,6 +754,29 @@ main:focus {
   line-height: 1.85;
   color: var(--muted);
 }
+.evidence-item {
+  margin: var(--space-4) 0 0;
+}
+.evidence-item:has(.quote-explanation) .evidence-quote {
+  border-bottom-right-radius: 0;
+}
+.quote-explanation {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-top: 0;
+  border-radius: 0 0 var(--radius-control) var(--radius-control);
+  font-size: var(--caption);
+}
+.quote-explanation strong {
+  display: block;
+  margin-bottom: var(--space-1);
+}
+.quote-explanation p {
+  overflow-wrap: anywhere;
+}
+.finding-content > .quote-upgrade {
+  margin-top: var(--space-3);
+}
 .evidence-quote {
   display: block;
   width: 100%;
@@ -763,7 +786,6 @@ main:focus {
   border-left: 3px solid var(--line-strong);
   border-radius: 0 var(--radius-control) var(--radius-control) 0;
   padding: 13px 15px;
-  margin-top: 15px;
 }
 .evidence-quote:hover {
   border-color: var(--line-strong);
@@ -1937,4 +1959,39 @@ main:focus {
 .score-summary li[data-missing='true'] strong,
 .score-summary li[data-missing='true'] > span {
   color: var(--error);
+}
+
+.connection-panel {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+  padding: var(--space-6);
+  border: 2px solid var(--warning);
+  border-radius: var(--radius-panel);
+  background: var(--warning-bg);
+  color: var(--text);
+}
+.connection-panel h2 {
+  margin-bottom: var(--space-3);
+  font-size: 20px;
+  overflow-wrap: anywhere;
+}
+.connection-panel p {
+  max-width: 70ch;
+  overflow-wrap: anywhere;
+}
+.connection-panel > div {
+  min-width: 0;
+}
+.shared-demo {
+  color: var(--text);
+}
+@media (max-width: 480px) {
+  .connection-panel {
+    display: block;
+  }
+  .connection-panel > svg {
+    margin-bottom: var(--space-3);
+  }
 }

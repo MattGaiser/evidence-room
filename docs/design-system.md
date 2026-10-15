@@ -47,6 +47,10 @@ Draft edits save after a short pause. The writer serializes requests and drains 
 
 Unavailable Finalize and AI actions remain keyboard discoverable with `aria-disabled` and guarded activation. Hover or focus reveals their reason below the button without moving it; touch can request the same guidance. Escape dismisses it, returning focus to the trigger if a guidance link was focused. For incomplete finalization, use the semantic error color on missing labels, borders, and score rows, paired with specific written requirements and direct links to each field or criterion. Mark invalid controls with `aria-invalid` and associate the explanation through `aria-describedby`. Keep completed inputs unmarked, clear each requirement as it is corrected, and explain operational waits without inventing field errors.
 
+Each extracted quote is a figure with a distinct commentary caption labeled Why this matters. Keep the verbatim words inside the source button and put the criterion-specific explanation outside it. Associate the caption using `aria-describedby`; returning from the source restores the exact triggering quote. Reuse neutral surfaces and borders instead of adding another evidence-status color.
+
+Cloud startup feedback uses the existing warning palette in a prominent full-width panel. Show it after a delayed initial connection, remove it on success, and replace it with recovery on error. A normal fast response should never leave a startup notice behind. The shared-workspace label states a consequence that affects visitors' work; do not scatter hosting details elsewhere in the loaded interface.
+
 ## Copy and layout rules
 
 - Give the first screen one clear next action. Keep the optional walkthrough in one place, with one card at a time.

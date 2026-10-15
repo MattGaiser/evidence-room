@@ -5,9 +5,24 @@ using Microsoft.Extensions.FileProviders;
 
 var root = Environment.GetEnvironmentVariable("EVIDENCE_ROOT") ?? Directory.GetCurrentDirectory();
 var competition = Wire.Read<Competition>(File.ReadAllText(Path.Combine(root, "data", "competition.json")));
-var store = new Store(Environment.GetEnvironmentVariable("EVIDENCE_DB") ?? Path.Combine(root, ".local", "evidence.sqlite"), competition);
+var hosted = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("K_SERVICE"));
+var origins = (Environment.GetEnvironmentVariable("PUBLIC_ORIGINS") ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+if (hosted && (origins.Length == 0 || origins.Any(origin => !Uri.TryCreate(origin, UriKind.Absolute, out var uri) || uri.Scheme != "https" || uri.GetLeftPart(UriPartial.Authority) != origin)))
+    throw new InvalidOperationException("Hosted execution requires exact HTTPS PUBLIC_ORIGINS.");
+var allowedHosts = origins.Select(origin => new Uri(origin).Host).ToHashSet(StringComparer.OrdinalIgnoreCase);
+WorkspaceSnapshot? snapshot = null;
+var path = Environment.GetEnvironmentVariable("EVIDENCE_DB") ?? Path.Combine(root, ".local", "evidence.sqlite");
+if (hosted)
+{
+    var bucket = Environment.GetEnvironmentVariable("EVIDENCE_SNAPSHOT_BUCKET");
+    if (string.IsNullOrWhiteSpace(bucket)) throw new InvalidOperationException("Hosted execution requires a private snapshot bucket.");
+    path = Path.Combine(Path.GetTempPath(), "evidence-room-" + Guid.NewGuid().ToString("N"), "workspace.sqlite");
+    snapshot = new WorkspaceSnapshot(path, new CloudSnapshotStorage(bucket, new HttpClient { Timeout = TimeSpan.FromSeconds(8), MaxResponseContentBufferSize = WorkspaceSnapshot.MaximumBytes + 8192 }));
+}
+var store = new Store(path, competition, snapshot);
 var worker = new ReviewWorker(root, store);
 var builder = WebApplication.CreateBuilder(args);
+if (hosted) builder.WebHost.UseUrls("http://0.0.0.0:" + (Environment.GetEnvironmentVariable("PORT") ?? "8080"));
 builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 65536);
 builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow);
 var app = builder.Build();
@@ -16,8 +31,14 @@ app.Use(async (context, next) =>
     context.Response.Headers["X-Content-Type-Options"] = "nosniff";
     context.Response.Headers["Referrer-Policy"] = "no-referrer";
     context.Response.Headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'";
+    if (context.Request.Path == "/health")
+    {
+        context.Response.StatusCode = snapshot?.Healthy != false ? 200 : 503;
+        await context.Response.WriteAsync(snapshot?.Healthy != false ? "ready" : "reconnecting");
+        return;
+    }
     var host = context.Request.Host.Host;
-    if (host is not ("127.0.0.1" or "localhost" or "[::1]") || (context.Connection.RemoteIpAddress is { } address && !IPAddress.IsLoopback(address)))
+    if (hosted ? !allowedHosts.Contains(host) : host is not ("127.0.0.1" or "localhost" or "[::1]") || (context.Connection.RemoteIpAddress is { } address && !IPAddress.IsLoopback(address)))
     { context.Response.StatusCode = 403; await context.Response.WriteAsJsonAsync(new { error = "This reviewer workspace accepts local connections only." }); return; }
     if (context.Request.Path.StartsWithSegments("/api"))
     {
@@ -26,8 +47,8 @@ app.Use(async (context, next) =>
         {
             var origin = context.Request.Headers.Origin.ToString();
             var allowed = $"{context.Request.Scheme}://{context.Request.Host}";
-            if (origin != "" && origin != allowed && origin != "http://127.0.0.1:5193")
-            { context.Response.StatusCode = 403; await context.Response.WriteAsJsonAsync(new { error = "Use the local reviewer workspace to make changes." }); return; }
+            if (hosted ? !origins.Contains(origin, StringComparer.Ordinal) : origin != "" && origin != allowed && origin != "http://127.0.0.1:5193")
+            { context.Response.StatusCode = 403; await context.Response.WriteAsJsonAsync(new { error = "Use the reviewer workspace to make changes." }); return; }
             if (!context.Request.HasJsonContentType())
             { context.Response.StatusCode = 415; await context.Response.WriteAsJsonAsync(new { error = "Send application/json." }); return; }
         }
@@ -42,7 +63,7 @@ app.Use(async (context, next) =>
         context.Response.StatusCode = 500; await context.Response.WriteAsJsonAsync(new { error = "The operation could not be completed. Your unsaved text is still available; try again." });
     }
 });
-app.MapGet("/api/workspace", () => Results.Ok(new { competition = new { competition.Id, competition.Name, competition.Round, competition.Version, competition.Brief, competition.Criteria }, entries = store.List(), ai = new { available = worker.Available, remaining = Math.Max(0, worker.Limit - store.Attempts()) } }));
+app.MapGet("/api/workspace", () => Results.Ok(new { competition = new { competition.Id, competition.Name, competition.Round, competition.Version, competition.Brief, competition.Criteria }, entries = store.List(), sharedDemo = hosted, ai = new { available = worker.Available, remaining = Math.Max(0, worker.Limit - store.Attempts()) } }));
 app.MapGet("/api/entries/{id}", (string id) => Results.Ok(store.Get(id)));
 app.MapPost("/api/entries", (EntryInput input) => Results.Ok(store.Create(input)));
 app.MapPut("/api/entries/{id}", (string id, EntryInput input) => Results.Ok(store.Revise(id, input)));

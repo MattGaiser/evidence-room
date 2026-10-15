@@ -5,11 +5,14 @@ namespace EvidenceRoom;
 public sealed class Store
 {
     private readonly string connectionString;
+    private readonly WorkspaceSnapshot? persistence;
     public Competition Competition { get; }
     private static string Now() => DateTimeOffset.UtcNow.ToString("O");
 
-    public Store(string path, Competition competition)
+    public Store(string path, Competition competition, WorkspaceSnapshot? persistence = null)
     {
+        this.persistence = persistence;
+        using var access = persistence?.Enter();
         Competition = competition;
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
         connectionString = new SqliteConnectionStringBuilder { DataSource = path, ForeignKeys = true, DefaultTimeout = 5 }.ToString();
@@ -45,11 +48,37 @@ public sealed class Store
         foreach (var seed in competition.Submissions)
         {
             var inserted = Execute(db, tx, "INSERT OR IGNORE INTO entries VALUES($id,$team,$title,1,$at)", ("$id", seed.Id), ("$team", seed.Team), ("$title", seed.Title), ("$at", Now()));
-            if (inserted == 0) continue;
+            if (inserted == 0)
+            {
+                var current = Detail(db, tx, seed.Id);
+                // Append updated authored examples only before a reviewer has started a scorecard.
+                // Keep prior analyses, user work, and final recommendations intact.
+                if (current.Entry.Revision == 1 && current.Assessment is null &&
+                    current.Review is { Source: "example", PromptVersion: "evidence-review-v1" } &&
+                    current.Submission.Paragraphs.SequenceEqual(seed.Paragraphs))
+                {
+                    Rules.ValidateReview(seed.ExampleReview, competition, seed.Paragraphs);
+                    InsertReview(db, tx, seed.Id, 1, seed.ExampleReview, "example", "Authored example");
+                    Audit(db, tx, seed.Id, 1, "example-updated", "Example analysis updated with quote explanations. Previous analysis retained in history.");
+                }
+                continue;
+            }
             Execute(db, tx, "INSERT INTO submissions VALUES($id,1,$title,$content,$at)", ("$id", seed.Id), ("$title", seed.Title), ("$content", Wire.Pack(seed.Paragraphs)), ("$at", Now()));
             Rules.ValidateReview(seed.ExampleReview, competition, seed.Paragraphs);
             InsertReview(db, tx, seed.Id, 1, seed.ExampleReview, "example", "Authored example");
             Audit(db, tx, seed.Id, 1, "received", "Example submission added to this workspace.");
+        }
+        Commit(db, tx);
+        access?.Changed();
+    }
+
+    private void Commit(SqliteConnection db, SqliteTransaction tx)
+    {
+        if (persistence is not null)
+        {
+            using var size = Command(db, tx, "SELECT page_count * page_size FROM pragma_page_count, pragma_page_size");
+            if (Convert.ToInt64(size.ExecuteScalar()) > WorkspaceSnapshot.MaximumBytes)
+                throw new DomainError(429, "This shared demo has reached its storage limit. You can still review and export existing entries.");
         }
         tx.Commit();
     }
@@ -78,6 +107,7 @@ public sealed class Store
 
     public EntrySummary[] List()
     {
+        using var access = persistence?.Enter();
         using var db = Open();
         using var command = Command(db, null, "SELECT e.id,e.team,e.title,e.revision,e.updated_at,COALESCE(a.finalized,0),a.content FROM entries e LEFT JOIN assessments a ON a.entry_id=e.id AND a.revision=e.revision ORDER BY e.rowid");
         using var rows = command.ExecuteReader();
@@ -87,6 +117,7 @@ public sealed class Store
     }
     public EntryDetail Get(string id)
     {
+        using var access = persistence?.Enter();
         using var db = Open();
         using var tx = db.BeginTransaction(deferred: true);
         var result = Detail(db, tx, id);
@@ -116,26 +147,34 @@ public sealed class Store
 
     public EntryDetail Create(EntryInput input)
     {
+        using var access = persistence?.Enter();
         var paragraphs = Rules.ValidateEntry(input);
         var id = Guid.NewGuid().ToString("N");
         using var db = Open(); using var tx = db.BeginTransaction();
+        if (persistence is not null)
+        {
+            using var count = Command(db, tx, "SELECT COUNT(*) FROM entries");
+            if (Convert.ToInt64(count.ExecuteScalar()) >= 50) throw new DomainError(429, "This shared demo has reached its 50-entry limit. You can still review existing entries.");
+        }
         Execute(db, tx, "INSERT INTO entries VALUES($id,$team,$title,1,$at)", ("$id", id), ("$team", input.Team.Trim()), ("$title", input.Title.Trim()), ("$at", Now()));
         Execute(db, tx, "INSERT INTO submissions VALUES($id,1,$title,$content,$at)", ("$id", id), ("$title", input.Title.Trim()), ("$content", Wire.Pack(paragraphs)), ("$at", Now()));
         Audit(db, tx, id, 1, "received", "Submission received. Ready for evidence review.");
-        var result = Detail(db, tx, id); tx.Commit(); return result;
+        var result = Detail(db, tx, id); Commit(db, tx); access?.Changed(); return result;
     }
     public EntryDetail Revise(string id, EntryInput input)
     {
+        using var access = persistence?.Enter();
         var paragraphs = Rules.ValidateEntry(input);
         using var db = Open(); using var tx = db.BeginTransaction();
         var current = Detail(db, tx, id);
         if (current.Entry.Revision != input.ExpectedRevision) throw new DomainError(409, "This submission changed in another tab. Reload the entry before saving your revision.");
         if (input.Team.Trim() != current.Entry.Team) throw new DomainError(400, "A revision must keep the team identity. Add a new entry for another team.");
+        if (persistence is not null && current.Entry.Revision >= 10) throw new DomainError(429, "This demo entry has reached its 10-version limit. Start a new submission to continue.");
         var revision = current.Entry.Revision + 1;
         Execute(db, tx, "UPDATE entries SET team=$team,title=$title,revision=$rev,updated_at=$at WHERE id=$id", ("$id", id), ("$team", input.Team.Trim()), ("$title", input.Title.Trim()), ("$rev", revision), ("$at", Now()));
         Execute(db, tx, "INSERT INTO submissions VALUES($id,$rev,$title,$content,$at)", ("$id", id), ("$rev", revision), ("$title", input.Title.Trim()), ("$content", Wire.Pack(paragraphs)), ("$at", Now()));
         Audit(db, tx, id, revision, "revised", $"Submission version {revision} received. Previous analyses and assessments remain in the case history.");
-        var result = Detail(db, tx, id); tx.Commit(); return result;
+        var result = Detail(db, tx, id); Commit(db, tx); access?.Changed(); return result;
     }
     private string InsertReview(SqliteConnection db, SqliteTransaction tx, string id, int revision, ReviewContent content, string source, string model)
     {
@@ -145,6 +184,7 @@ public sealed class Store
     }
     public EntryDetail SaveReview(string id, int expectedRevision, ReviewContent content, string model)
     {
+        using var access = persistence?.Enter();
         using var db = Open(); using var tx = db.BeginTransaction();
         var current = Detail(db, tx, id);
         if (current.Entry.Revision != expectedRevision) throw new DomainError(409, "The submission changed during analysis. No stale analysis was attached; run it again for the new version.");
@@ -152,10 +192,11 @@ public sealed class Store
         Rules.ValidateReview(content, Competition, current.Submission.Paragraphs);
         InsertReview(db, tx, id, expectedRevision, content, "openai", model);
         Audit(db, tx, id, expectedRevision, "analyzed", "AI evidence analysis saved after citation validation.");
-        var result = Detail(db, tx, id); tx.Commit(); return result;
+        var result = Detail(db, tx, id); Commit(db, tx); access?.Changed(); return result;
     }
     public EntryDetail SaveAssessment(string id, AssessmentInput input)
     {
+        using var access = persistence?.Enter();
         var total = Rules.ValidateAssessment(input, Competition);
         using var db = Open(); using var tx = db.BeginTransaction();
         var current = Detail(db, tx, id);
@@ -165,23 +206,28 @@ public sealed class Store
         if (input.ReviewId != current.Review?.Id) throw new DomainError(409, "The evidence analysis changed. Reload and check the latest analysis before saving.");
         var next = new Assessment(input.ExpectedVersion + 1, input.ExpectedRevision, Competition.Version, input.ReviewId, input.Scores, input.Rationale.Trim(), input.Outcome, input.Confirmed, input.Finalize, total, Now());
         Execute(db, tx, "INSERT INTO assessments VALUES($id,$rev,$version,$content,$final) ON CONFLICT(entry_id,revision) DO UPDATE SET version=excluded.version,content=excluded.content,finalized=excluded.finalized", ("$id", id), ("$rev", input.ExpectedRevision), ("$version", next.Version), ("$content", Wire.Pack(next)), ("$final", input.Finalize ? 1 : 0));
+        if (persistence is not null) Execute(db, tx, "DELETE FROM audit WHERE entry_id=$id AND revision=$rev AND kind='draft-saved'", ("$id", id), ("$rev", input.ExpectedRevision));
         Audit(db, tx, id, input.ExpectedRevision, input.Finalize ? "finalized" : "draft-saved", input.Finalize ? $"Human recommendation recorded: {input.Outcome}. Weighted score {total:0.##}/100." : "Reviewer scorecard draft saved.");
-        var result = Detail(db, tx, id); tx.Commit(); return result;
+        var result = Detail(db, tx, id); Commit(db, tx); access?.Changed(); return result;
     }
     public int Attempts()
     {
+        using var access = persistence?.Enter();
         using var db = Open(); using var command = Command(db, null, "SELECT attempts FROM budget WHERE id=1");
         return Convert.ToInt32(command.ExecuteScalar());
     }
     public void ReserveAttempt(int limit)
     {
+        using var access = persistence?.Enter();
         using var db = Open(); using var tx = db.BeginTransaction();
         if (Execute(db, tx, "UPDATE budget SET attempts=attempts+1 WHERE id=1 AND attempts<$limit", ("$limit", limit)) == 0)
             throw new DomainError(429, "The configured AI allowance has been used. You can continue reviewing and scoring manually.");
-        tx.Commit();
+        Commit(db, tx);
+        access?.Changed();
     }
     public object Export(string id)
     {
+        using var access = persistence?.Enter();
         using var db = Open(); using var tx = db.BeginTransaction(deferred: true);
         var current = Detail(db, tx, id);
         using var versionsCommand = Command(db, tx, "SELECT revision,title,content,created_at FROM submissions WHERE entry_id=$id ORDER BY revision", ("$id", id));

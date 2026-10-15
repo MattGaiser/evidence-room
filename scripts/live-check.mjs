@@ -42,6 +42,12 @@ for (const [index, seed] of data.submissions.entries()) {
   });
   if (analyzed.review.source !== 'openai' || analyzed.assessment !== null)
     throw new Error('AI must persist an analysis without entering human scores.');
+  if (
+    analyzed.review.content.criteria.some((c) =>
+      c.evidence.some((cite) => !cite.explanation?.trim()),
+    )
+  )
+    throw new Error('Every extracted quote must explain why it matters to its criterion.');
   if (index === 2 && !analyzed.review.content.flags.some((f) => f.kind === 'instruction-in-text'))
     throw new Error('The injected instruction was not flagged.');
   if (analyzed.review.content.criteria.every((c) => c.status === 'documented'))

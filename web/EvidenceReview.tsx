@@ -163,20 +163,42 @@ export default function EvidenceReview({
         {finding && (
           <div className="finding-content">
             <p>{finding.finding}</p>
-            {finding.evidence.map((cite) => (
-              <button
-                type="button"
-                className="evidence-quote"
-                key={cite.paragraphId + cite.quote}
-                onClick={(event) => onCitation(cite, event.currentTarget)}
-              >
-                <span>“{cite.quote}”</span>
-                <small>
-                  Passage {cite.paragraphId.slice(1)}
-                  <ArrowLeft size={13} />
-                </small>
-              </button>
+            {finding.evidence.map((cite, index) => (
+              <figure className="evidence-item" key={cite.paragraphId + cite.quote}>
+                <button
+                  type="button"
+                  className="evidence-quote"
+                  aria-describedby={
+                    cite.explanation ? `quote-note-${criterion.id}-${index}` : undefined
+                  }
+                  onClick={(event) => onCitation(cite, event.currentTarget)}
+                >
+                  <span>“{cite.quote}”</span>
+                  <small>
+                    Passage {cite.paragraphId.slice(1)}
+                    <ArrowLeft size={13} />
+                  </small>
+                </button>
+                {cite.explanation && (
+                  <figcaption
+                    className="quote-explanation"
+                    id={`quote-note-${criterion.id}-${index}`}
+                  >
+                    <strong>Why this matters</strong>
+                    <p>{cite.explanation}</p>
+                  </figcaption>
+                )}
+              </figure>
             ))}
+            {finding.evidence.some((cite) => !cite.explanation) && (
+              <p className="quote-upgrade">
+                {detail.assessment?.finalized
+                  ? 'This recorded analysis predates quote explanations.'
+                  : unavailable
+                    ? 'This earlier analysis has no quote explanations. You can still inspect its source passages.'
+                    : 'Run a new AI analysis to see why each quote was selected.'}
+              </p>
+            )}
             {finding.question && (
               <div className="clarification">
                 <strong>Ask the team</strong>

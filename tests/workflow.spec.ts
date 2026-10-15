@@ -2,9 +2,12 @@ import { test, expect } from './fixtures';
 import type { Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { readFileSync } from 'node:fs';
+import type { Review } from '../web/types';
 const seed = JSON.parse(
   readFileSync(new URL('../data/competition.json', import.meta.url), 'utf8'),
-) as { submissions: { paragraphs: { text: string }[] }[] };
+) as {
+  submissions: { id: string; paragraphs: { text: string }[]; exampleReview: Review['content'] }[];
+};
 
 async function openEntry(page: Page) {
   await page.goto('/');
@@ -964,6 +967,142 @@ for (const width of [320, 1440])
       }
     }
   });
+
+test('slow startup explains the wait prominently and recovers after a failed connection', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  let release: () => void = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let fail = true;
+  await page.route('**/api/workspace', async (route) => {
+    if (!fail) return route.continue();
+    await held;
+    fail = false;
+    await route.fulfill({
+      status: 503,
+      json: { error: 'The workspace is reconnecting. Try again shortly.' },
+    });
+  });
+  try {
+    await page.goto('/');
+    await expect(page.getByText('Opening the review workspace…', { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole('heading', {
+        name: /Cloud Run may be warming up|Connecting to the review workspace/,
+      }),
+    ).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('.connection-panel')).toContainText('no need to refresh');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    expect(
+      (
+        await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+          .analyze()
+      ).violations,
+    ).toEqual([]);
+  } finally {
+    release();
+  }
+  await expect(page.getByRole('alert')).toContainText('The workspace could not load.');
+  await page.getByRole('button', { name: 'Try again', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: 'Review the evidence', exact: true }),
+  ).toBeVisible();
+  await expect(page.locator('.connection-panel')).toHaveCount(0);
+  await expect(page.locator('#start-title')).toBeFocused();
+});
+
+test('a stale case link provides a working route back to the example workspace', async ({
+  page,
+}) => {
+  await page.goto('/?entry=missing-case');
+  await expect(page.getByRole('alert')).toContainText('That entry was not found.');
+  await page.getByRole('button', { name: 'Open example workspace', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: 'Review the evidence', exact: true }),
+  ).toBeVisible();
+  await expect(page).toHaveURL(/entry=tidewell/);
+  await expect(page.locator('#start-title')).toBeFocused();
+});
+
+test('each extracted quote explains its relevance and preserves source navigation', async ({
+  page,
+}) => {
+  const example = seed.submissions.find((entry) => entry.id === 'commons');
+  if (!example) throw new Error('Commons example is missing.');
+  await openEntry(page);
+  await page.getByRole('button', { name: /Commons Water Lab/ }).click();
+  await page.getByRole('button', { name: /Review & score/ }).click();
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const [index, finding] of example.exampleReview.criteria.entries()) {
+      await page.getByLabel('Choose a criterion').selectOption(String(index));
+      await expect(page.locator('.evidence-item')).toHaveCount(finding.evidence.length);
+      for (const [quoteIndex, cite] of finding.evidence.entries()) {
+        const item = page.locator('.evidence-item').nth(quoteIndex);
+        const quote = item.getByRole('button');
+        await expect(item.locator('figcaption')).toContainText(
+          cite.explanation ?? 'Missing explanation',
+        );
+        await expect(quote).toHaveAccessibleDescription('Why this matters ' + cite.explanation);
+        await quote.click();
+        await expect(page.locator('mark')).toHaveText(cite.quote);
+        await page.getByRole('button', { name: 'Back to finding', exact: true }).click();
+        await expect(quote).toBeFocused();
+      }
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    expect(
+      (
+        await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+          .analyze()
+      ).violations,
+    ).toEqual([]);
+  }
+  await page.reload();
+  await page.getByRole('button', { name: /Review & score/ }).click();
+  await expect(page.locator('.quote-explanation')).toContainText(
+    example.exampleReview.criteria[0].evidence[0].explanation ?? 'Missing explanation',
+  );
+  const packet = await (await page.request.get('/api/entries/commons/export')).json();
+  expect(packet.current.review.content.criteria[2].evidence).toEqual(
+    example.exampleReview.criteria[2].evidence,
+  );
+});
+
+test('older saved analyses keep their quotes without inventing explanatory notes', async ({
+  page,
+}) => {
+  const original = await (await page.request.get('/api/entries/tidewell')).json();
+  const legacy = structuredClone(original);
+  legacy.review.promptVersion = 'evidence-review-v1';
+  for (const finding of legacy.review.content.criteria)
+    for (const cite of finding.evidence) delete cite.explanation;
+  await page.route('**/api/entries/tidewell', (route) => route.fulfill({ json: legacy }));
+  await openEntry(page);
+  await page.getByRole('button', { name: /Review & score/ }).click();
+  await expect(page.locator('.quote-explanation')).toHaveCount(0);
+  await expect(
+    page.getByText(
+      'This earlier analysis has no quote explanations. You can still inspect its source passages.',
+    ),
+  ).toBeVisible();
+  await page.locator('.evidence-quote').first().click();
+  await expect(page.locator('mark')).toHaveText(
+    legacy.review.content.criteria[0].evidence[0].quote,
+  );
+  expect(
+    (await (await page.request.get('/api/entries/tidewell/export')).json()).current.review.id,
+  ).toBe(original.review.id);
+});
 
 test('unavailable Finalize highlights only missing fields and provides direct fixes', async ({
   page,

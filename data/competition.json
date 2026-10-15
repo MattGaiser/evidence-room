@@ -67,7 +67,8 @@
             "evidence": [
               {
                 "paragraphId": "p2",
-                "quote": "The trial did not include microbiological testing, full-strength seawater, or an independent laboratory."
+                "quote": "The trial did not include microbiological testing, full-strength seawater, or an independent laboratory.",
+                "explanation": "These exclusions leave water safety and performance at seawater salinity untested. The indoor trial cannot establish readiness for the proposed coastal clinics on its own."
               }
             ],
             "question": "What test protocol and independent results will establish water quality under the intended field conditions?"
@@ -79,7 +80,8 @@
             "evidence": [
               {
                 "paragraphId": "p3",
-                "quote": "It excludes the solar array, storage tank, transport, operator wages, and laboratory testing."
+                "quote": "It excludes the solar array, storage tank, transport, operator wages, and laboratory testing.",
+                "explanation": "The $1.90 estimate covers only part of the cost of delivering water. These exclusions prevent a full comparison with the clinics' current water purchases."
               }
             ],
             "question": "Provide an installed-cost estimate and an operating budget that includes staffing and testing."
@@ -91,7 +93,8 @@
             "evidence": [
               {
                 "paragraphId": "p4",
-                "quote": "A clinic network has expressed interest in a 90-day pilot, but there is no signed site agreement."
+                "quote": "A clinic network has expressed interest in a 90-day pilot, but there is no signed site agreement.",
+                "explanation": "Interest in a 90-day trial identifies a potential host, but does not secure access to a site. Delivery still depends on a written commitment."
               }
             ],
             "question": "Who will own maintenance and what written agreement secures the pilot site?"
@@ -103,7 +106,8 @@
             "evidence": [
               {
                 "paragraphId": "p5",
-                "quote": "We interviewed three managers, but have not verified invoices or spoken with patients."
+                "quote": "We interviewed three managers, but have not verified invoices or spoken with patients.",
+                "explanation": "The three interviews provide an initial account of the need. Unverified invoices and the absence of patient input leave the cost baseline and user priorities uncertain."
               }
             ],
             "question": "How will you validate the cost baseline and include patients in setting the pilot's success measures?"
@@ -148,7 +152,8 @@
             "evidence": [
               {
                 "paragraphId": "p2",
-                "quote": "Technicians introduced ten known leaks; the system identified eight, missed two, and raised three false alarms."
+                "quote": "Technicians introduced ten known leaks; the system identified eight, missed two, and raised three false alarms.",
+                "explanation": "Reporting eight detections alongside two misses and three false alarms makes both successes and errors visible. Known leaks in a training network do not establish performance on buried community pipes."
               }
             ],
             "question": "What field test will establish performance on buried pipe and measured water savings?"
@@ -160,7 +165,8 @@
             "evidence": [
               {
                 "paragraphId": "p3",
-                "quote": "We have not estimated inspection labour, replacement batteries, or repair costs."
+                "quote": "We have not estimated inspection labour, replacement batteries, or repair costs.",
+                "explanation": "These omitted costs are recurring or necessary parts of operating the approach. The sensor hardware price alone cannot establish the total cost of the pilot."
               }
             ],
             "question": "What is the total cost per test segment, including inspections, communications and repairs?"
@@ -172,11 +178,13 @@
             "evidence": [
               {
                 "paragraphId": "p4",
-                "quote": "The operator would own repairs and technician scheduling."
+                "quote": "The operator would own repairs and technician scheduling.",
+                "explanation": "Assigning repairs and technician scheduling to the operator identifies who would carry out essential pilot work. This is a concrete operational responsibility rather than an unspecified partner need."
               },
               {
                 "paragraphId": "p4",
-                "quote": "We propose four weeks of baseline metering followed by eight weeks of testing, tracking confirmed leaks, false alarms, litres recovered, and inspection hours."
+                "quote": "We propose four weeks of baseline metering followed by eight weeks of testing, tracking confirmed leaks, false alarms, litres recovered, and inspection hours.",
+                "explanation": "The four-week baseline and eight-week test create a comparison period and a delivery schedule. Leak counts, recovered volume, and inspection hours provide observable measures for evaluating the pilot."
               }
             ],
             "question": null
@@ -188,7 +196,8 @@
             "evidence": [
               {
                 "paragraphId": "p5",
-                "quote": "In two community workshops, residents identified intermittent service as the main issue."
+                "quote": "In two community workshops, residents identified intermittent service as the main issue.",
+                "explanation": "The workshops connect the proposed leak-repair approach to a problem residents actually identified: intermittent service. They establish engagement, but do not yet quantify how much service would improve."
               }
             ],
             "question": "How will pressure, supply volume and outages be measured consistently before and after repairs?"
@@ -229,7 +238,8 @@
             "evidence": [
               {
                 "paragraphId": "p2",
-                "quote": "We have no measured output, energy balance, fouling test, or independent validation."
+                "quote": "We have no measured output, energy balance, fouling test, or independent validation.",
+                "explanation": "The team explicitly reports that output, energy balance, fouling, and external validation have not been measured. The projected 2,000 litres per day remains a model prediction rather than demonstrated performance."
               }
             ],
             "question": "Can you provide the model and a test plan that validates the key assumptions with measurements?"
@@ -248,7 +258,8 @@
             "evidence": [
               {
                 "paragraphId": "p4",
-                "quote": "We are speaking with industrial sites but have not selected one."
+                "quote": "We are speaking with industrial sites but have not selected one.",
+                "explanation": "A heat-source site is a prerequisite for testing this concept, and none has been selected. The pilot schedule and access to waste heat therefore remain unresolved."
               }
             ],
             "question": "Which site, heat supplier and operating partner would support a pilot, and on what schedule?"

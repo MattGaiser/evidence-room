@@ -2,6 +2,8 @@
 
 A submission review workbench that helps a judge trace findings to source evidence, ask useful clarification questions, and record an independent recommendation.
 
+**Try it: [evidence-room-gaiser.web.app](https://evidence-room-gaiser.web.app)**
+
 Open a submission, check its evidence against four criteria, enter your own scores, then export the complete case packet. AI can organize evidence; it never fills in scores or selects an outcome. Three fictional water-access proposals illustrate measured results, unconventional approaches, and unsupported claims.
 
 ![The review workspace keeps original submission passages beside source-linked findings.](docs/review-workspace.png)
@@ -18,11 +20,11 @@ npm run build
 npm start
 ```
 
-Open **[http://127.0.0.1:5194](http://127.0.0.1:5194)**. Keep the terminal running. There is no hosted URL for this local sample.
+Open **[http://127.0.0.1:5194](http://127.0.0.1:5194)**. Keep the terminal running. The public demo runs on Firebase Hosting with its API on Cloud Run; see [deployment](docs/deployment.md).
 
 On Windows, stop the running server before `npm run build` or `npm run check`; Windows locks assemblies while they are in use. Use `npm run dev` alongside the API for frontend changes.
 
-Start with **Tidewell Collective → Review the evidence**. Review one criterion at a time using Previous/Next or the criterion selector. The queue hides during review; **Show review queue** reopens it. Click a quotation to highlight its source in yellow, then use **Back to finding** to return. **Review & score** puts a score beside each criterion's evidence. Select a score, then use Next criterion; the selector shows which criteria are scored. **Recommendation** summarizes those scores and collects your rationale and outcome. Edit score returns to that criterion's evidence. Scores and recommendation edits save automatically. Wait for All changes saved before closing the browser; switching submissions and exporting finish pending saves for you. Finalization requires the complete scorecard and confirmation. Hover or focus unavailable Finalize to highlight missing fields in red and see links to complete them; tapping guides you to the first missing requirement. Export downloads JSON containing the rubric, all submission versions and analyses, saved assessment, and event history.
+Start with **Tidewell Collective → Review the evidence**. Review one criterion at a time using Previous/Next or the criterion selector. The queue hides during review; **Show review queue** reopens it. Each quotation includes a **Why this matters** note explaining its relevance and limitations. Click a quotation to highlight its source in yellow, then use **Back to finding** to return. **Review & score** puts a score beside each criterion's evidence. Select a score, then use Next criterion; the selector shows which criteria are scored. **Recommendation** summarizes those scores and collects your rationale and outcome. Edit score returns to that criterion's evidence. Scores and recommendation edits save automatically. Wait for All changes saved before closing the browser; switching submissions and exporting finish pending saves for you. Finalization requires the complete scorecard and confirmation. Hover or focus unavailable Finalize to highlight missing fields in red and see links to complete them; tapping guides you to the first missing requirement. Export downloads JSON containing the rubric, all submission versions and analyses, saved assessment, and event history.
 
 The default workspace needs no API key. Its analyses are labeled **Example analysis**. New submissions can be reviewed manually. Data persists in `.local/evidence.sqlite`; restarting the server retains it. To start a separate workspace, set `EVIDENCE_DB` to a new SQLite file before starting.
 
@@ -57,11 +59,12 @@ Optional paid verification is separate:
 npm run test:live -- --confirm-paid
 ```
 
-It makes up to three small provider requests through a running local server, including one prompt-injection case, and checks persisted exports. It writes ignored results under `.local/`. Only run it with the key owner's approval. Three such full-path checks were completed during development. A separate browser check of the current default, GPT-5.6 Terra, saved all four criteria, validated 15 source quotations, preserved the human assessment, and verified the exported record. This small evaluation is not evidence of general judging accuracy.
+It makes up to three small provider requests through a running local server, including one prompt-injection case, and checks persisted exports. It writes ignored results under `.local/`. Only run it with the key owner's approval. These checks verify persisted analyses, exact source quotations, per-quote explanations, and independent human assessments. They do not benchmark general judging accuracy.
 
 ## Design and handoff
 
 - [Review specification](docs/review-spec.md): scope and observable acceptance criteria.
+- [Firebase and Cloud Run deployment](docs/deployment.md): public URL, durable storage, startup notice, limits, and update steps.
 - [Architecture](docs/architecture.md): ownership, transactions, AI trust boundary, and deployment requirements.
 - [Product decisions](docs/product-decisions.md): workflow, interaction system, and source research.
 - [Interface system](docs/design-system.md): XPRIZE colors, shared tokens, component ownership, and copy rules.
@@ -69,4 +72,4 @@ It makes up to three small provider requests through a running local server, inc
 
 The stack is React/TypeScript, ASP.NET Core, SQLite, and a Python Responses API worker. Run `npm run dev` for the Vite frontend on port 5193 alongside the API on 5194; rebuild before using the compiled frontend again.
 
-This is a single-reviewer local application with a fixed illustrative rubric. It does not implement accounts, judge assignment, multi-judge consensus, file ingestion, prize disbursement, or production hosting. Loopback enforcement is intentional. Public deployment needs authentication, authorization, hosted storage, secret management, operational controls, and a reviewed data-retention policy before exposing competitor submissions. Exact quotation validation proves text provenance; the judge still evaluates interpretation and scientific credibility.
+The public demo is a shared example workspace with a fixed illustrative rubric and no individual accounts. Changes are visible to other visitors; use synthetic examples only. Saved work and the shared AI allowance persist across Cloud Run restarts. Local execution retains loopback-only access. It does not implement judge assignment, multi-judge consensus, file ingestion, or prize disbursement. Handling private competitor submissions would require authentication, authorization, organization isolation, and a reviewed data-retention policy. Exact quotation validation proves text provenance; the judge still evaluates interpretation and scientific credibility.

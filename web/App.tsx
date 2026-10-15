@@ -25,6 +25,7 @@ import ReviewProcess from './ReviewProcess';
 import type { FlushDraft } from './useAutosave';
 import Walkthrough from './Walkthrough';
 import Notice from './Notice';
+import ConnectionPanel from './ConnectionPanel';
 import { api, errorText } from './types';
 import type { Citation, Detail, Entry, Workspace } from './types';
 
@@ -38,12 +39,16 @@ type PendingAction = 'entry' | 'export' | 'new' | 'revision' | 'reload' | 'analy
 export default function App() {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [detail, setDetail] = useState<Detail | null>(null);
+  const focusLoaded = useRef(false);
+  const [loadedFocus, setLoadedFocus] = useState<{ read: number; id: string } | null>(null);
   const [selected, setSelected] = useState(
     () => new URLSearchParams(window.location.search).get('entry') || 'tidewell',
   );
   const selectedRef = useRef(selected);
   selectedRef.current = selected;
   const [tab, setTab] = useState<Tab>('submission');
+  const tabRef = useRef(tab);
+  tabRef.current = tab;
   const [filter, setFilter] = useState('all');
   const [queueExpanded, setQueueExpanded] = useState(
     () => !window.matchMedia('(max-width: 760px)').matches,
@@ -112,26 +117,46 @@ export default function App() {
     setDetail(null);
     void Promise.all([
       api<Workspace>('/api/workspace', {
-        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(12000)]),
+        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(45000)]),
       }),
       api<Detail>(`/api/entries/${selected}`, {
-        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(12000)]),
+        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(45000)]),
       }),
     ])
       .then(([ws, next]) => {
         if (active) {
           if (read === workspaceRead.current) setWorkspace(ws);
           setDetail(next);
+          if (focusLoaded.current) {
+            focusLoaded.current = false;
+            setLoadedFocus({
+              read,
+              id:
+                tabRef.current === 'submission'
+                  ? 'start-title'
+                  : tabRef.current === 'evidence'
+                    ? 'analysis-title'
+                    : 'scorecard-title',
+            });
+          }
         }
       })
       .catch((e) => {
-        if (active) setLoadError(errorText(e));
+        if (active)
+          setLoadError(
+            e instanceof Error && e.name === 'TimeoutError'
+              ? 'The server did not respond within 45 seconds. Try connecting again.'
+              : errorText(e),
+          );
       });
     return () => {
       active = false;
       controller.abort();
     };
   }, [selected, reload]);
+  useEffect(() => {
+    if (loadedFocus) focusPanelHeading(document.getElementById(loadedFocus.id));
+  }, [loadedFocus]);
   useEffect(() => () => request.current?.abort(), []);
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -197,6 +222,7 @@ export default function App() {
   const selectEntry = (entry: Entry) => {
     if (entry.id === selected) return;
     void withSavedDraft(() => {
+      focusLoaded.current = true;
       setSelected(entry.id);
       changeTab('submission');
       setCitation(null);
@@ -205,6 +231,7 @@ export default function App() {
   };
   const reloadEntry = (discard = false) => {
     const reloadSaved = () => {
+      focusLoaded.current = true;
       setReload((value) => value + 1);
       setCitation(null);
       feedback('Reloading the latest saved entry.');
@@ -337,7 +364,12 @@ export default function App() {
           <div>
             <p className="eyebrow">{workspace?.competition.round ?? 'Submission review'}</p>
             <h1>{workspace?.competition.name ?? 'Evidence Room'}</h1>
-            <p>Check submission evidence, score the rubric, and record a recommendation.</p>
+            <p>
+              {workspace?.sharedDemo && (
+                <strong className="shared-demo">Shared example workspace. </strong>
+              )}
+              Check submission evidence, score the rubric, and record a recommendation.
+            </p>
           </div>
           <button
             type="button"
@@ -362,17 +394,31 @@ export default function App() {
             <button
               type="button"
               className="button secondary"
-              onClick={() => setReload((n) => n + 1)}
+              onClick={() => {
+                focusLoaded.current = true;
+                setReload((n) => n + 1);
+              }}
             >
               <RefreshCw size={16} />
               Try again
             </button>
+            {selected !== 'tidewell' && (
+              <button
+                type="button"
+                className="text-button"
+                onClick={() => {
+                  focusLoaded.current = true;
+                  changeTab('submission');
+                  setSelected('tidewell');
+                }}
+              >
+                Open example workspace
+                <ArrowRight size={16} />
+              </button>
+            )}
           </div>
         ) : !workspace || !detail ? (
-          <div className="loading-panel" role="status">
-            <LoaderCircle size={24} className="spin" />
-            <p>Opening the review workspace…</p>
-          </div>
+          <ConnectionPanel initial={!workspace} />
         ) : (
           <div className={`workspace-layout ${queueExpanded ? '' : 'queue-collapsed'}`}>
             <SubmissionQueue
