@@ -31,6 +31,8 @@ A round reviewer needs to understand what an entry actually demonstrates, identi
 20. Firebase serves the frontend independently of Cloud Run. Delayed initial connections show a prominent warm-up message after 1.5 seconds, wait up to 45 seconds, and offer retry on failure. Explicit retry, queue navigation, reload, and stale-link recovery focus the loaded destination after its data arrives; passive loading preserves keyboard focus.
 21. Hosted storage acknowledges mutations and AI reservations only after a conditional durable snapshot upload. Conflicts and uncertain uploads fail closed; startup restores verified state and quota before serving. Ordinary storage-capacity rejection rolls back while preserving read/export access.
 22. The public synthetic workspace is clearly shared, requires configured HTTPS hosts and browser write origins, keeps the key server-side, and bounds entries, revisions, snapshots, and paid attempts. No paid request retries automatically.
+23. Timeout or cancellation stops the real worker before the concurrency gate is reused. If shutdown cannot be confirmed within the cleanup deadline, the worker becomes unhealthy and rejects further analyses until restart. Previous analysis and human work remain intact; already reserved attempts remain spent.
+24. Browser API responses must satisfy runtime contracts before becoming application state or saved-draft acknowledgments. Incompatible successful responses preserve text and expose retry. Compatibility checks exercise the actual .NET serializer and the Python worker's emitted bytes without a paid provider.
 
 ## Scope
 

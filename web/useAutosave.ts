@@ -1,6 +1,7 @@
+import { detailSchema } from './contracts';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, errorText, ApiError } from './api';
-import type { Assessment, Detail } from './types';
+import type { Assessment, Detail } from './contracts';
 
 export type Draft = Pick<Assessment, 'scores' | 'rationale' | 'outcome' | 'confirmed' | 'reviewId'>;
 export type FlushDraft = () => Promise<boolean>;
@@ -49,7 +50,7 @@ export default function useAutosave({
     setSaving(true);
     const operation = (async () => {
       try {
-        const next = await api<Detail>(`/api/entries/${entry.entry.id}/assessment`, {
+        const next = await api(`/api/entries/${entry.entry.id}/assessment`, detailSchema, {
           method: 'PUT',
           body: JSON.stringify({
             ...JSON.parse(snapshot),

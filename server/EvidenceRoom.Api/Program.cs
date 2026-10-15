@@ -19,7 +19,7 @@ if (settings.Hosted) builder.WebHost.UseUrls("http://0.0.0.0:" + settings.Port);
 builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 65536);
 builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow);
 var app = builder.Build();
-app.UseMiddleware<ReviewerHttpMiddleware>(settings, (Func<bool>)(() => snapshot?.Healthy != false));
+app.UseMiddleware<ReviewerHttpMiddleware>(settings, (Func<bool>)(() => snapshot?.Healthy != false && worker.Healthy));
 app.MapGet("/api/workspace", () => Results.Ok(new { competition = new { competition.Id, competition.Name, competition.Round, competition.Version, competition.Brief, competition.Criteria }, entries = store.List(), sharedDemo = settings.Hosted, ai = new { available = worker.Available, remaining = Math.Max(0, worker.Limit - store.Attempts()) } }));
 app.MapGet("/api/entries/{id}", (string id) => Results.Ok(store.Get(id)));
 app.MapPost("/api/entries", (EntryInput input) => Results.Ok(store.Create(input)));

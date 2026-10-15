@@ -22,12 +22,13 @@ import SubmissionReader from './SubmissionReader';
 import { formatDate } from './format';
 import { focusPanelHeading } from './focus';
 import ReviewProcess from './ReviewProcess';
-import type { FlushDraft } from './useAutosave';
+import useSavedAction from './useSavedAction';
+import useAnalysis from './useAnalysis';
 import Walkthrough from './Walkthrough';
 import Notice from './Notice';
 import ConnectionPanel from './ConnectionPanel';
-import { api, errorText } from './api';
-import type { Citation, Detail, Entry } from './types';
+import { errorText } from './api';
+import type { Citation, Entry } from './contracts';
 import useWorkspace from './useWorkspace';
 
 const tabs = [
@@ -41,7 +42,6 @@ const headingIds: Record<Tab, string> = {
   evidence: 'analysis-title',
   decision: 'scorecard-title',
 };
-type PendingAction = 'entry' | 'export' | 'new' | 'revision' | 'reload' | 'analysis' | 'finalize';
 export default function App() {
   const focusLoaded = useRef(false);
   const [loadedFocus, setLoadedFocus] = useState<{ id: string } | null>(null);
@@ -60,15 +60,6 @@ export default function App() {
     setTour(true);
   };
   const [form, setForm] = useState<'new' | 'revision' | null>(null);
-  const persistDraft = useRef<FlushDraft | null>(null);
-  const registerDraft = useCallback((flush: FlushDraft | null) => {
-    persistDraft.current = flush;
-  }, []);
-  const transitioning = useRef(false);
-  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
-  const transitionPending = pendingAction !== null;
-  const [busy, setBusy] = useState(false);
-  const request = useRef<AbortController | null>(null);
   const [citation, setCitation] = useState<Citation | null>(null);
   const citationOrigin = useRef<HTMLElement | null>(null);
   const [sourceExpanded, setSourceExpanded] = useState(true);
@@ -113,7 +104,6 @@ export default function App() {
   useEffect(() => {
     if (loadedFocus) focusPanelHeading(document.getElementById(loadedFocus.id));
   }, [loadedFocus]);
-  useEffect(() => () => request.current?.abort(), []);
   useEffect(() => {
     if (citation) {
       const passage = document.getElementById(`passage-${citation.paragraphId}`);
@@ -121,43 +111,35 @@ export default function App() {
       passage?.scrollIntoView({ behavior: 'auto', block: 'center' });
     }
   }, [citation]);
-  const withSavedDraft = async (
-    action: () => void | boolean | Promise<void> | Promise<boolean>,
-    cancel = false,
-    kind: PendingAction = 'entry',
-  ) => {
-    if (transitioning.current) {
-      feedback('Finishing the current save before continuing.');
-      return false;
-    }
-    transitioning.current = true;
-    setPendingAction(kind);
-    try {
-      if (cancel && request.current) cancelAnalysis();
-      if (persistDraft.current && !(await persistDraft.current())) {
-        feedback('Save failed. Your changes are still here.');
-        if (kind === 'finalize') return false;
-        if (tab === 'submission') changeTab('evidence', 'draft-save-error');
-        else
-          requestAnimationFrame(() => {
-            const panel = document.getElementById('draft-save-error');
-            panel?.focus({ preventScroll: true });
-            panel?.scrollIntoView({ block: 'nearest' });
-          });
-        return false;
-      }
-      return (await action()) !== false;
-    } finally {
-      transitioning.current = false;
-      setPendingAction(null);
-    }
-  };
-  const cancelAnalysis = () => {
-    request.current?.abort();
-    request.current = null;
-    setBusy(false);
-    feedback('Analysis canceled. Your submission and scorecard are unchanged.');
-  };
+  const analysis = useAnalysis({
+    onSaved: (next) => {
+      acceptDetail(next);
+      changeTab('evidence');
+    },
+    feedback,
+    onError: notifyError,
+    refresh: refreshWorkspace,
+  });
+  const { busy, cancel: cancelAnalysis } = analysis;
+  const {
+    run: withSavedDraft,
+    pendingAction,
+    registerDraft,
+  } = useSavedAction({
+    cancelAnalysis,
+    feedback,
+    onBlocked: (kind) => {
+      if (kind === 'finalize') return;
+      if (tab === 'submission') changeTab('evidence', 'draft-save-error');
+      else
+        requestAnimationFrame(() => {
+          const panel = document.getElementById('draft-save-error');
+          panel?.focus({ preventScroll: true });
+          panel?.scrollIntoView({ block: 'nearest' });
+        });
+    },
+  });
+  const transitionPending = pendingAction !== null;
   const selectEntry = (entry: Entry) => {
     if (entry.id === selected) return;
     void withSavedDraft(() => {
@@ -177,7 +159,7 @@ export default function App() {
     };
     if (discard) {
       if (window.confirm('Discard the unsaved changes and load the saved draft?')) {
-        if (request.current) cancelAnalysis();
+        cancelAnalysis();
         reloadSaved();
       }
     } else void withSavedDraft(reloadSaved, true, 'reload');
@@ -208,43 +190,16 @@ export default function App() {
       });
   };
   const runAnalysis = () => {
-    if (!detail || request.current) return;
+    if (!detail || busy) return;
     void withSavedDraft(
       () => {
-        void startAnalysis();
+        setNotice(null);
+        void analysis.run(detail);
       },
       false,
       'analysis',
     );
   };
-  async function startAnalysis() {
-    if (!detail || request.current) return;
-    const controller = new AbortController();
-    request.current = controller;
-    setBusy(true);
-    setNotice(null);
-    try {
-      const next = await api<Detail>(`/api/entries/${detail.entry.id}/analysis`, {
-        method: 'POST',
-        body: JSON.stringify({ expectedRevision: detail.entry.revision }),
-        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(40000)]),
-      });
-      if (request.current !== controller) return;
-      acceptDetail(next);
-      feedback(
-        'AI analysis saved. Open a quotation to check its source, then review the findings.',
-      );
-      changeTab('evidence');
-    } catch (e) {
-      if (!controller.signal.aborted && request.current === controller) notifyError(e);
-    } finally {
-      if (request.current === controller) {
-        request.current = null;
-        setBusy(false);
-        void refreshWorkspace().catch(() => {});
-      }
-    }
-  }
   async function exportPacket() {
     if (!detail) return;
     await withSavedDraft(

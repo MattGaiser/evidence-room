@@ -1,6 +1,8 @@
+import { workspaceSchema } from './contracts';
+import { detailSchema } from './contracts';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, errorText } from './api';
-import type { Detail, Workspace } from './types';
+import type { Detail, Workspace } from './contracts';
 
 const loadTimeout = 45000;
 
@@ -34,7 +36,7 @@ export default function useWorkspace(onLoaded: () => void) {
   const reload = useCallback(() => setReloadVersion((version) => version + 1), []);
   const refresh = useCallback(async () => {
     const read = ++workspaceRead.current;
-    const value = await api<Workspace>('/api/workspace');
+    const value = await api('/api/workspace', workspaceSchema);
     if (mounted.current && read === workspaceRead.current) setWorkspace(value);
   }, []);
   const accept = useCallback((next: Detail) => {
@@ -64,8 +66,8 @@ export default function useWorkspace(onLoaded: () => void) {
     setError('');
     setDetail(null);
     void Promise.all([
-      api<Workspace>('/api/workspace', { signal }),
-      api<Detail>(`/api/entries/${selected}`, { signal }),
+      api('/api/workspace', workspaceSchema, { signal }),
+      api(`/api/entries/${selected}`, detailSchema, { signal }),
     ])
       .then(([queue, entry]) => {
         if (!active) return;

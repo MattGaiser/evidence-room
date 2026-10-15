@@ -1,5 +1,5 @@
 import { ArrowRight, ChevronDown } from 'lucide-react';
-import type { Citation, Detail } from './types';
+import type { Citation, Detail } from './contracts';
 
 export default function SubmissionReader({
   detail,

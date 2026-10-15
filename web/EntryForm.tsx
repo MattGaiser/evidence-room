@@ -1,8 +1,9 @@
+import { detailSchema } from './contracts';
 import { useEffect, useState } from 'react';
 import { ArrowRight, LoaderCircle } from 'lucide-react';
 import Dialog from './Dialog';
 import { api, errorText } from './api';
-import type { Detail } from './types';
+import type { Detail } from './contracts';
 
 export default function EntryForm({
   detail,
@@ -52,8 +53,9 @@ export default function EntryForm({
           setBusy(true);
           setError('');
           try {
-            const value = await api<Detail>(
+            const value = await api(
               detail ? `/api/entries/${detail.entry.id}` : '/api/entries',
+              detailSchema,
               {
                 method: detail ? 'PUT' : 'POST',
                 body: JSON.stringify({

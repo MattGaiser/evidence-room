@@ -4,7 +4,7 @@ using System.Text.Json.Nodes;
 
 namespace EvidenceRoom.Tests;
 
-// Both database suites clear SQLite's process-wide pools during fixture cleanup.
+// Database suites clear SQLite's process-wide pools during fixture cleanup.
 [Collection("SQLite workspace")]
 public sealed class ReviewTests : IDisposable
 {

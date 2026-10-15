@@ -1,5 +1,5 @@
 import { Check, ChevronRight } from 'lucide-react';
-import type { Entry } from './types';
+import type { Entry } from './contracts';
 
 export default function SubmissionQueue({
   entries,

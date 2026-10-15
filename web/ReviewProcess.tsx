@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ComponentProps } from 'react';
 import {
   ArrowLeft,
@@ -9,14 +9,14 @@ import {
   Download,
   LoaderCircle,
   LockKeyhole,
-  RefreshCw,
 } from 'lucide-react';
-import { api, errorText } from './api';
-import { outcomeLabels, scoreLabels } from './assessment';
-import type { Criterion, Detail } from './types';
+import { outcomeLabels } from './assessment';
+import type { Criterion, Detail } from './contracts';
 import Dialog from './Dialog';
 import EvidenceReview from './EvidenceReview';
-import useAutosave from './useAutosave';
+import useAssessmentDraft from './useAssessmentDraft';
+import DraftSaveStatus from './DraftSaveStatus';
+import RecommendationFields from './RecommendationFields';
 import type { FlushDraft } from './useAutosave';
 import ActionButton from './ActionButton';
 import { focusPanelHeading } from './focus';
@@ -66,19 +66,23 @@ export default function ReviewProcess({
   onReview: (focusId?: string) => void;
   onRecommend: () => void;
 }) {
-  const [scores, setScores] = useState<Record<string, number | null>>(
-    detail.assessment?.scores ?? Object.fromEntries(criteria.map((c) => [c.id, null])),
-  );
-  const [rationale, setRationale] = useState(detail.assessment?.rationale ?? '');
-  const [outcome, setOutcome] = useState(detail.assessment?.outcome ?? '');
-  const [confirmed, setConfirmed] = useState(
-    detail.assessment?.finalized || detail.assessment?.reviewId === (detail.review?.id ?? null)
-      ? (detail.assessment?.confirmed ?? false)
-      : false,
-  );
-  const [finalizing, setFinalizing] = useState(false);
   const [confirming, setConfirming] = useState(false);
-  const [error, setError] = useState('');
+  const recoveryFocus = useRef(false);
+  const { draft, update, updateScore, autosave, finalizing, error, finalize } = useAssessmentDraft({
+    detail,
+    criteria,
+    analysisRunning,
+    recordingPreflight: transitionPending && confirming,
+    onSaved,
+    onFeedback,
+    onRegister,
+    onRecorded: () => setConfirming(false),
+    onRecordFailed: () => {
+      recoveryFocus.current = true;
+      setConfirming(false);
+    },
+  });
+  const { scores, rationale, outcome, confirmed } = draft;
   const [criterionIndex, setCriterionIndex] = useState(0);
   const [explaining, setExplaining] = useState(false);
   const [attempted, setAttempted] = useState(false);
@@ -87,14 +91,6 @@ export default function ReviewProcess({
     setCriterionIndex(criteria.findIndex((criterion) => criterion.id === id));
     onReview('criterion-score-title');
   };
-  const reviewId = detail.review?.id ?? null;
-  const previousReview = useRef(reviewId);
-  useEffect(() => {
-    if (previousReview.current !== reviewId) {
-      previousReview.current = reviewId;
-      setConfirmed(false);
-    }
-  }, [reviewId]);
   const finalized = detail.assessment?.finalized === true;
   const resultHeading = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
@@ -147,31 +143,6 @@ export default function ReviewProcess({
         ]
       : []),
   ];
-  const finalRequest = useRef<Promise<boolean> | null>(null);
-  const registerPersistence = useCallback(
-    (flush: FlushDraft | null) => {
-      onRegister(
-        flush
-          ? async () => {
-              if (finalRequest.current && !(await finalRequest.current)) return false;
-              return flush();
-            }
-          : null,
-      );
-    },
-    [onRegister],
-  );
-  const draft = { scores, rationale, outcome, confirmed, reviewId };
-  const autosave = useAutosave({
-    detail,
-    value: draft,
-    paused: analysisRunning,
-    enabled: !finalized && !finalizing,
-    recording: finalizing || (transitionPending && confirming),
-    onSaved,
-    onRegister: registerPersistence,
-  });
-  const recoveryFocus = useRef(false);
   useEffect(() => {
     if (confirming || !recoveryFocus.current) return;
     recoveryFocus.current = false;
@@ -182,90 +153,15 @@ export default function ReviewProcess({
     });
     return () => cancelAnimationFrame(frame);
   }, [confirming]);
-  const latestDraft = useRef(draft);
-  latestDraft.current = draft;
-  const changed = () => {
-    setError('');
-  };
-  function finalize() {
-    if (finalRequest.current || analysisRunning) return Promise.resolve(false);
-    setFinalizing(true);
-    setError('');
-    const operation = (async () => {
-      try {
-        if (!(await autosave.flush())) {
-          recoveryFocus.current = true;
-          setConfirming(false);
-          return false;
-        }
-        const next = await api<Detail>('/api/entries/' + detail.entry.id + '/assessment', {
-          method: 'PUT',
-          body: JSON.stringify({
-            ...latestDraft.current,
-            expectedRevision: detail.entry.revision,
-            expectedVersion: autosave.getVersion(),
-            finalize: true,
-          }),
-        });
-        onSaved(next);
-        setConfirming(false);
-        onFeedback('Recommendation recorded. This version is now locked and ready to export.');
-        return true;
-      } catch (cause) {
-        setError(errorText(cause));
-        recoveryFocus.current = true;
-        setConfirming(false);
-        return false;
-      } finally {
-        setFinalizing(false);
-      }
-    })();
-    finalRequest.current = operation;
-    void operation.finally(() => {
-      finalRequest.current = null;
-    });
-    return operation;
-  }
   const draftControls = (
-    <div className="draft-controls">
-      {(autosave.error || error) && (
-        <div className="error-panel" role="alert" id="draft-save-error" tabIndex={-1}>
-          <p>Changes not saved. {autosave.error?.text ?? error}</p>
-          <div className="save-recovery">
-            {autosave.error && !autosave.error.conflict && (
-              <button
-                type="button"
-                className="button secondary"
-                onClick={() => {
-                  document.getElementById('autosave-state')?.focus({ preventScroll: true });
-                  void autosave.retry();
-                }}
-                disabled={autosave.saving}
-              >
-                <RefreshCw size={16} />
-                Try saving again
-              </button>
-            )}
-            <button type="button" className="text-button" onClick={onReload}>
-              Reload saved draft
-            </button>
-          </div>
-        </div>
-      )}
-      <p className="autosave-status" role="status" id="autosave-state" tabIndex={-1}>
-        {autosave.error
-          ? 'Not saved'
-          : finalizing
-            ? 'Recording recommendation...'
-            : autosave.dirty || autosave.saving
-              ? analysisRunning
-                ? 'Changes will save when analysis finishes.'
-                : 'Saving changes...'
-              : detail.assessment
-                ? 'All changes saved'
-                : 'Changes save automatically'}
-      </p>
-    </div>
+    <DraftSaveStatus
+      autosave={autosave}
+      error={error}
+      finalizing={finalizing}
+      analysisRunning={analysisRunning}
+      hasSavedDraft={detail.assessment !== null}
+      onReload={onReload}
+    />
   );
   return (
     <>
@@ -277,10 +173,7 @@ export default function ReviewProcess({
           criterionIndex={criterionIndex}
           onCriterionIndex={setCriterionIndex}
           scores={scores}
-          onScore={(id, value) => {
-            setScores((current) => ({ ...current, [id]: value }));
-            changed();
-          }}
+          onScore={updateScore}
           scoreDisabled={finalizing}
           scoreInvalid={showValidation}
           saveControls={finalized || active !== 'evidence' ? null : draftControls}
@@ -331,122 +224,14 @@ export default function ReviewProcess({
                 Check the scores you entered while reviewing the evidence, then explain your
                 recommendation.
               </p>
-              <ul className="score-summary" aria-label="Your criterion scores">
-                {criteria.map((criterion) => (
-                  <li
-                    key={criterion.id}
-                    data-missing={
-                      showValidation && scores[criterion.id] === null ? 'true' : undefined
-                    }
-                  >
-                    <div>
-                      <strong>{criterion.name}</strong>
-                      <small>{criterion.weight}% of total</small>
-                    </div>
-                    <span>
-                      {scores[criterion.id] === null
-                        ? 'Not scored'
-                        : `${scores[criterion.id]} / 4: ${scoreLabels[scores[criterion.id] ?? 0]}`}
-                    </span>
-                    <button
-                      type="button"
-                      className="text-button"
-                      aria-label={`Edit ${criterion.name} score`}
-                      onClick={() => editCriterion(criterion.id)}
-                    >
-                      Edit score
-                      <ArrowLeft size={14} />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              {missingScores.length > 0 && (
-                <div className="missing-scores">
-                  <p>
-                    {missingScores.length}{' '}
-                    {missingScores.length === 1
-                      ? 'criterion still needs a score'
-                      : 'criteria still need scores'}
-                    .
-                  </p>
-                  <button
-                    type="button"
-                    className="text-button"
-                    onClick={() => editCriterion(missingScores[0].id)}
-                  >
-                    Complete missing scores
-                    <ArrowLeft size={16} />
-                  </button>
-                </div>
-              )}
-              <label
-                className={`field ${showValidation && rationaleMissing ? 'invalid-field' : ''}`}
-              >
-                <span>Your rationale</span>
-                <textarea
-                  id="assessment-rationale"
-                  aria-invalid={(showValidation && rationaleMissing) || undefined}
-                  disabled={finalizing}
-                  rows={4}
-                  maxLength={4000}
-                  value={rationale}
-                  onChange={(e) => {
-                    setRationale(e.target.value);
-                    changed();
-                  }}
-                  placeholder="Explain how the evidence and its limitations support your recommendation."
-                  aria-describedby={
-                    showValidation && rationaleMissing
-                      ? 'rationale-help requirement-rationale'
-                      : 'rationale-help'
-                  }
-                />
-              </label>
-              <p id="rationale-help" className="field-help">
-                At least 40 characters to finalize.
-              </p>
-              <div className={`field ${showValidation && outcome === '' ? 'invalid-field' : ''}`}>
-                <label htmlFor="recommendation">Recommendation</label>
-                <select
-                  disabled={finalizing}
-                  id="recommendation"
-                  aria-invalid={(showValidation && outcome === '') || undefined}
-                  aria-describedby={
-                    showValidation && outcome === '' ? 'requirement-outcome' : undefined
-                  }
-                  value={outcome}
-                  onChange={(e) => {
-                    setOutcome(e.target.value);
-                    changed();
-                  }}
-                >
-                  <option value="">Choose a recommendation</option>
-                  {Object.entries(outcomeLabels).map(([key, label]) => (
-                    <option value={key} key={key}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <label
-                className={`confirmation ${showValidation && !confirmed ? 'invalid-field' : ''}`}
-              >
-                <input
-                  type="checkbox"
-                  id="independent-review"
-                  aria-invalid={(showValidation && !confirmed) || undefined}
-                  aria-describedby={
-                    showValidation && !confirmed ? 'requirement-confirmation' : undefined
-                  }
-                  disabled={finalizing}
-                  checked={confirmed}
-                  onChange={(e) => {
-                    setConfirmed(e.target.checked);
-                    changed();
-                  }}
-                />
-                <span>I checked the submission and made an independent assessment.</span>
-              </label>
+              <RecommendationFields
+                criteria={criteria}
+                draft={draft}
+                disabled={finalizing}
+                showValidation={showValidation}
+                onChange={update}
+                onEdit={editCriterion}
+              />
               {active === 'decision' && draftControls}
               <div className="score-actions">
                 {showValidation && (

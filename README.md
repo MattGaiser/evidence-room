@@ -53,6 +53,8 @@ npm run check
 
 The default suite needs no paid account. It includes .NET storage/domain tests, Python provider-contract tests, and Chromium/Firefox/WebKit workflow and accessibility checks. Each browser test launches an isolated API with live AI disabled and a temporary database, using ports 5195 and above by worker. Tests clean up their own processes and storage. `npm run check` also runs lint, formatting, TypeScript, and release builds.
 
+Real Python subprocess tests cover timeout, cancellation, unexpected exit, overlap, and failed shutdown. Compatibility tests pass actual .NET input through the Python worker with a local provider fixture and validate the emitted result in .NET. Browser runtime schemas infer the TypeScript contracts and reject malformed successful responses without falsely acknowledging unsaved work.
+
 Optional paid verification is separate:
 
 ```sh

@@ -13,7 +13,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { focusPanelHeading } from './focus';
-import type { Citation, Criterion, Detail, Finding, Workspace } from './types';
+import type { Citation, Criterion, Detail, Finding, Workspace } from './contracts';
 import { formatDate } from './format';
 
 const coverage = {

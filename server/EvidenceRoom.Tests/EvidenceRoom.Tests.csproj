@@ -17,6 +17,8 @@
   <ItemGroup>
     <Using Include="Xunit" />
     <Content Include="..\..\data\competition.json" Link="competition.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\worker\review.py" Link="worker\review.py" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="contract_provider.py" Link="worker\contract_provider.py" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

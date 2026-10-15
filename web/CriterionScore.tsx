@@ -1,5 +1,5 @@
 import { scoreLabels } from './assessment';
-import type { Criterion } from './types';
+import type { Criterion } from './contracts';
 
 export default function CriterionScore({
   criterion,

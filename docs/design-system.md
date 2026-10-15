@@ -29,16 +29,20 @@ These text/background pairs exceed WCAG AA's 4.5:1 threshold for normal text. Co
 
 `web/tokens.css` owns color values, spacing, radii, type, shadows, and control height. `web/styles.css` owns shared controls, component layouts, and responsive rules. Components use semantic classes instead of inline colors or local theme objects. Use the existing spacing scale and shared button, field, panel, and dialog treatments when adding a control.
 
-| Component           | Responsibility                                                                 |
-| ------------------- | ------------------------------------------------------------------------------ |
-| `App`               | Queue visibility, navigation, focus, mutation guards, analysis coordination    |
-| `useWorkspace`      | Selected entry, cancelable reads, accepted responses, queue/detail consistency |
-| `SubmissionQueue`   | Queue display and filtering controls                                           |
-| `SubmissionReader`  | Original passages and exact citation highlights                                |
-| `EvidenceReview`    | Findings, source links, provenance disclosure, analysis controls               |
-| `ReviewProcess`     | Shared draft, criterion selection, draft/final actions                         |
-| `Dialog` / `Notice` | Focus restoration and accessible feedback                                      |
-| `ActionButton`      | Guarded unavailable actions with hover, keyboard, and touch explanations       |
+| Component                                  | Responsibility                                                                    |
+| ------------------------------------------ | --------------------------------------------------------------------------------- |
+| `App`                                      | Queue visibility, navigation, focus, mutation guards, analysis coordination       |
+| `useWorkspace`                             | Selected entry, cancelable reads, accepted responses, queue/detail consistency    |
+| `useSavedAction`                           | Save-before-action gate, registered persistence, pending action identity          |
+| `useAnalysis`                              | Analysis request lifetime, cancellation, stale response rejection                 |
+| `SubmissionQueue`                          | Queue display and filtering controls                                              |
+| `SubmissionReader`                         | Original passages and exact citation highlights                                   |
+| `EvidenceReview`                           | Findings, source links, provenance disclosure, analysis controls                  |
+| `ReviewProcess`                            | Criterion selection, validation guidance, confirmation and recovery focus         |
+| `useAssessmentDraft`                       | Keyed draft fields, autosave coordination, final request and acknowledged version |
+| `RecommendationFields` / `DraftSaveStatus` | Recommendation inputs, score summary, save feedback and recovery controls         |
+| `Dialog` / `Notice`                        | Focus restoration and accessible feedback                                         |
+| `ActionButton`                             | Guarded unavailable actions with hover, keyboard, and touch explanations          |
 
 ReviewProcess remains mounted across workflow steps and owns one draft, so navigation preserves typed work. CriterionScore renders the current score controls and shared scale. Passage IDs remain stable within a submission version. Workspace responses are applied only if no newer read or accepted mutation has superseded them.
 
