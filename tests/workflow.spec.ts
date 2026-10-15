@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures';
-import type { Page } from '@playwright/test';
+import type { Download, Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { readFileSync } from 'node:fs';
 import type { Review } from '../web/types';
@@ -14,6 +14,11 @@ async function openEntry(page: Page) {
   await expect(
     page.getByRole('button', { name: 'Review the evidence', exact: true }),
   ).toBeVisible();
+}
+async function readPacket(download: Download) {
+  const path = await download.path();
+  if (!path) throw new Error('The case packet download did not produce a file.');
+  return JSON.parse(readFileSync(path, 'utf8'));
 }
 async function freshEntry(page: Page) {
   const team = `Test team ${crypto.randomUUID().slice(0, 8)}`;
@@ -94,7 +99,7 @@ test('draft survives reload, finalization locks the version, and export contains
   await page.getByRole('button', { name: 'Export case packet', exact: true }).last().click();
   const file = await download;
   expect(file.suggestedFilename()).toContain(entry.entry.id);
-  const packet = await (await page.request.get(`/api/entries/${entry.entry.id}/export`)).json();
+  const packet = await readPacket(file);
   expect(packet.current.assessment.finalized).toBe(true);
   expect(packet.current.assessment.total).toBe(50);
   expect(packet.competition.version).toBe(1);
@@ -360,11 +365,10 @@ test('export flushes immediate edits and unload protection matches every save st
   ).toBeDisabled();
   await expect(page.getByRole('status').filter({ hasText: 'Preparing export...' })).toBeVisible();
   release();
-  await download;
+  const exported = await download;
   await expect(page.getByText('All changes saved', { exact: true })).toBeVisible();
-  const packet = await (
-    await page.request.get('/api/entries/' + entry.entry.id + '/export')
-  ).json();
+  const packet = await readPacket(exported);
+  expect(packet.current.entry.id).toBe(entry.entry.id);
   expect(packet.current.assessment.scores.evidence).toBe(0);
   expect(packet.current.assessment.scores.resources).toBeNull();
   const guard = await page.evaluate(

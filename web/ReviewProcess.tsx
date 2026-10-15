@@ -11,11 +11,11 @@ import {
   LockKeyhole,
   RefreshCw,
 } from 'lucide-react';
-import { api, errorText, outcomeLabels } from './types';
+import { api, errorText } from './api';
+import { outcomeLabels, scoreLabels } from './assessment';
 import type { Criterion, Detail } from './types';
 import Dialog from './Dialog';
 import EvidenceReview from './EvidenceReview';
-import { scoreLabels } from './CriterionScore';
 import useAutosave from './useAutosave';
 import type { FlushDraft } from './useAutosave';
 import ActionButton from './ActionButton';

@@ -2,7 +2,7 @@ using System.Diagnostics;
 
 namespace EvidenceRoom;
 
-public sealed class ReviewWorker(string root, Store store)
+public sealed class ReviewWorker(RuntimeSettings settings, Store store)
 {
     private readonly SemaphoreSlim gate = new(1, 1);
     private static bool TryStop(Process process)
@@ -12,9 +12,8 @@ public sealed class ReviewWorker(string root, Store store)
         catch (System.ComponentModel.Win32Exception) { return false; }
         catch (AggregateException) { return false; }
     }
-    public bool Available => Environment.GetEnvironmentVariable("EVIDENCE_DISABLE_AI") != "1" && !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OPENAI_API_KEY"));
-    public int Limit => int.TryParse(Environment.GetEnvironmentVariable("EVIDENCE_AI_LIMIT"), out var limit) && limit is >= 0 and <= 100 ? limit : 10;
-    private record WorkerResult(ReviewContent? Content, string? Model, string? PromptVersion, string? Error);
+    public bool Available => settings.AiConfigured;
+    public int Limit => settings.AiAttemptLimit;
 
     public async Task<EntryDetail> Run(string id, int revision, CancellationToken cancel)
     {
@@ -26,7 +25,8 @@ public sealed class ReviewWorker(string root, Store store)
             if (entry.Entry.Revision != revision) throw new DomainError(409, "The submission changed. Reload it before running the analysis.");
             if (entry.Assessment?.Finalized == true) throw new DomainError(409, "This recommendation is final. Submit a revision to start another review.");
             cancel.ThrowIfCancellationRequested();
-            var executable = Environment.GetEnvironmentVariable("PYTHON_EXECUTABLE") ?? (OperatingSystem.IsWindows() ? "python" : "python3");
+            var executable = settings.PythonExecutable;
+            var root = settings.Root;
             var info = new ProcessStartInfo(executable) { RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = root };
             info.ArgumentList.Add(Path.Combine(root, "worker", "review.py"));
             info.Environment["PYTHONIOENCODING"] = "utf-8";
@@ -46,12 +46,7 @@ public sealed class ReviewWorker(string root, Store store)
                 await process.WaitForExitAsync(deadline.Token);
                 var raw = await output;
                 _ = await errors;
-                if (raw.Length > 100000) throw new DomainError(502, "The analysis exceeded the response limit. Nothing was saved.");
-                WorkerResult result;
-                try { result = Wire.Read<WorkerResult>(raw); }
-                catch (System.Text.Json.JsonException) { throw new DomainError(502, "The review worker returned an unreadable result. Nothing was saved."); }
-                if (process.ExitCode != 0 || result.Error is not null || result.Content is null || string.IsNullOrWhiteSpace(result.Model) || result.PromptVersion != Rules.PromptVersion)
-                    throw new DomainError(502, result.Error ?? "The review worker could not complete the analysis. Nothing was saved.");
+                var result = ReviewWorkerResult.Parse(raw, process.ExitCode);
                 cancel.ThrowIfCancellationRequested();
                 return store.SaveReview(id, revision, result.Content, result.Model);
             }

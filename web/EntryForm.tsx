@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ArrowRight, LoaderCircle } from 'lucide-react';
 import Dialog from './Dialog';
-import { api, errorText } from './types';
+import { api, errorText } from './api';
 import type { Detail } from './types';
 
 export default function EntryForm({

@@ -13,6 +13,10 @@ flowchart LR
 
 The browser owns unsaved form state. ASP.NET owns identities, revisions, scoring rules, storage, request limits, and commits. Python owns the provider request, output schema, refusal handling, and a second layer of citation validation. There is one caller for the worker and one provider; no plugin framework or general agent orchestration is needed.
 
+`useWorkspace` owns selected-entry identity, cancelable reads, and response ordering. Accepted mutations invalidate older reads before updating the detail and queue summary. `App` owns workflow navigation, focus, and the transition gate; `useAutosave` owns serialized draft writes. HTTP helpers and assessment labels have separate shared modules, while `types.ts` contains data contracts only.
+
+`RuntimeSettings` validates configuration once at startup without retaining the API key. `Program` composes the store, worker, and request pipeline. `ReviewerHttpMiddleware` owns host/origin checks, response headers, health, and error translation. The worker envelope parser rejects malformed process output before domain validation. Persistence failures retain their cause for bounded diagnostics; HTTP responses never expose exception details or credentials.
+
 ## State and commit boundaries
 
 A submission has a stable entry ID and immutable numbered versions. Paragraph IDs are stable within a version, not across revisions. A revision creates a fresh scorecard and requires a fresh analysis; previous evidence and recommendations remain in the export. Team identity cannot be changed through a submission revision.
@@ -23,7 +27,7 @@ Draft edits debounce for 600 ms and use one serialized writer. Acknowledgment re
 
 Navigation, export, analysis initiation, and explicit finalization share a transition gate. These actions wait for pending saves; conflicts stop the writer and preserve local fields. Finalization freezes its snapshot and keeps its confirmation locked through preflight and recording. Unload protection reads pending draft and recording refs directly.
 
-All writes use SQLite transactions. Multi-part case reads and exports use a read transaction so their submission, analysis, assessment, and event history describe one snapshot. An assessment links to the analysis the judge reviewed, even if a later analysis becomes available. A save against an outdated analysis is rejected. The UI preserves typed work and explains a conflict instead of silently reloading over it.
+All writes use SQLite transactions. A shared commit method checks hosted capacity and marks successful mutations for durable persistence, so a caller cannot acknowledge a commit while forgetting the snapshot. Multi-part case reads and exports use a read transaction so their submission, analysis, assessment, and event history describe one snapshot. An assessment links to the analysis the judge reviewed, even if a later analysis becomes available. A save against an outdated analysis is rejected. The UI preserves typed work and explains a conflict instead of silently reloading over it.
 
 The rubric in `data/competition.json` is fixed at version 1. Its complete configuration is pinned in SQLite at workspace creation. Startup rejects a changed configuration rather than pairing historical decisions with a new rubric. Restore the original file or use a new `EVIDENCE_DB` path. Databases from development builds without a rubric snapshot also require a new workspace. Editing and migrating live rubrics are outside this sample's contract.
 
@@ -31,7 +35,7 @@ The rubric in `data/competition.json` is fixed at version 1. Its complete config
 
 The worker receives only the rubric, brief, and current narrative passages. Submitted text is untrusted data. It has no tools, browsing, file access instructions, or authority to assign numeric scores. [Structured output](https://developers.openai.com/api/docs/guides/structured-outputs?api-mode=responses) requires one finding per criterion, source quotations with an explanation of each quote's relevance and limitations, clarification questions for gaps, and bounded flags. Python and .NET independently reject invented quotations or citations to another passage. Refusals, incomplete output, unexpected types, and unknown score fields fail closed.
 
-The provider can still misinterpret truthful quotations or omit relevant context. Provenance checks do not verify science or guarantee freedom from prompt injection. Findings are editable only by requesting another analysis; a judge's independent rationale, scores, and recommendation are stored separately. The three small live checks establish integration behavior on those cases, not model quality across competitions.
+The provider can still misinterpret truthful quotations or omit relevant context. Provenance checks do not verify science or guarantee freedom from prompt injection. Findings are editable only by requesting another analysis; a judge's independent rationale, scores, and recommendation are stored separately. Targeted live checks establish integration behavior on those cases, not model quality across competitions.
 
 A process-level semaphore bounds analysis concurrency. SQLite stores a durable request-attempt count. A worker is terminated on deadline or canceled HTTP request, and no paid request is automatically retried. The submission revision is checked again on commit. A client cancellation racing a completed transaction may leave a completed analysis saved; reloading shows authoritative state.
 

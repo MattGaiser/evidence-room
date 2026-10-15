@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, errorText, ApiError } from './types';
+import { api, errorText, ApiError } from './api';
 import type { Assessment, Detail } from './types';
 
 export type Draft = Pick<Assessment, 'scores' | 'rationale' | 'outcome' | 'confirmed' | 'reviewId'>;

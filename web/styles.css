@@ -1072,9 +1072,6 @@ main:focus {
   padding-top: 17px;
   margin-top: 22px;
 }
-.unsaved {
-  color: var(--warning);
-}
 .recorded-call {
   text-align: center;
   padding: 25px 0 5px;
@@ -1812,8 +1809,6 @@ main:focus {
 }
 .score-progress {
   font-size: var(--caption);
-}
-.score-progress {
   margin-top: var(--space-3);
   color: var(--muted);
 }

@@ -77,12 +77,12 @@ public sealed class WorkspaceSnapshot
             if (info.Length > MaximumBytes) throw new InvalidDataException("Workspace snapshot size limit reached.");
             generation = storage.Upload(File.ReadAllBytes(backupPath), generation);
         }
-        catch
+        catch (Exception cause)
         {
             // The remote write may have committed even if its acknowledgement was lost.
             // Serve no further state until Cloud Run restarts and restores the durable object.
             healthy = false;
-            throw new DomainError(503, "The workspace could not confirm that your changes were saved. Keep this page open and try again shortly.");
+            throw new DomainError(503, "The workspace could not confirm that your changes were saved. Keep this page open and try again shortly.", cause, "persist-workspace");
         }
         finally { if (File.Exists(backupPath)) File.Delete(backupPath); }
     }

@@ -2,6 +2,7 @@ using Microsoft.Data.Sqlite;
 
 namespace EvidenceRoom.Tests;
 
+[Collection("SQLite workspace")]
 public sealed class SnapshotTests : IDisposable
 {
     private readonly string directory = Path.Combine(Path.GetTempPath(), "evidence-snapshot-" + Guid.NewGuid().ToString("N"));
@@ -100,19 +101,14 @@ public sealed class SnapshotTests : IDisposable
         var blob = new Blob(); var current = Open(blob); blob.FailUpload = true;
         Directory.CreateDirectory(Path.Combine(directory, "worker"));
         File.WriteAllText(Path.Combine(directory, "worker", "review.py"), "import sys, pathlib\nif sys.stdin.buffer.read(): pathlib.Path('provider-input-received').write_text('received')\n");
-        var key = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
-        var disabled = Environment.GetEnvironmentVariable("EVIDENCE_DISABLE_AI");
-        try
+        var settings = RuntimeSettings.FromEnvironment(name => name switch
         {
-            Environment.SetEnvironmentVariable("OPENAI_API_KEY", "test-only");
-            Environment.SetEnvironmentVariable("EVIDENCE_DISABLE_AI", null);
-            await Assert.ThrowsAsync<DomainError>(() => new ReviewWorker(directory, current.Store).Run("tidewell", 1, CancellationToken.None));
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable("OPENAI_API_KEY", key);
-            Environment.SetEnvironmentVariable("EVIDENCE_DISABLE_AI", disabled);
-        }
+            "EVIDENCE_ROOT" => directory,
+            "OPENAI_API_KEY" => "test-only",
+            "PYTHON_EXECUTABLE" => Environment.GetEnvironmentVariable(name),
+            _ => null
+        });
+        await Assert.ThrowsAsync<DomainError>(() => new ReviewWorker(settings, current.Store).Run("tidewell", 1, CancellationToken.None));
         Assert.False(File.Exists(Path.Combine(directory, "provider-input-received")));
         blob.FailUpload = false;
         Assert.Equal(0, Open(blob).Store.Attempts());

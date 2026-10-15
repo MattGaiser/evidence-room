@@ -1,12 +1,5 @@
+import { scoreLabels } from './assessment';
 import type { Criterion } from './types';
-
-export const scoreLabels = [
-  'Not addressed',
-  'Claim only',
-  'Preliminary evidence',
-  'Measured, with limits',
-  'Independently corroborated',
-];
 
 export default function CriterionScore({
   criterion,

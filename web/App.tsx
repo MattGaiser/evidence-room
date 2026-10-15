@@ -26,8 +26,9 @@ import type { FlushDraft } from './useAutosave';
 import Walkthrough from './Walkthrough';
 import Notice from './Notice';
 import ConnectionPanel from './ConnectionPanel';
-import { api, errorText } from './types';
-import type { Citation, Detail, Entry, Workspace } from './types';
+import { api, errorText } from './api';
+import type { Citation, Detail, Entry } from './types';
+import useWorkspace from './useWorkspace';
 
 const tabs = [
   { id: 'submission', label: 'Read submission', Icon: FileText },
@@ -35,17 +36,15 @@ const tabs = [
   { id: 'decision', label: 'Recommendation', Icon: ClipboardCheck },
 ] as const;
 type Tab = (typeof tabs)[number]['id'];
+const headingIds: Record<Tab, string> = {
+  submission: 'start-title',
+  evidence: 'analysis-title',
+  decision: 'scorecard-title',
+};
 type PendingAction = 'entry' | 'export' | 'new' | 'revision' | 'reload' | 'analysis' | 'finalize';
 export default function App() {
-  const [workspace, setWorkspace] = useState<Workspace | null>(null);
-  const [detail, setDetail] = useState<Detail | null>(null);
   const focusLoaded = useRef(false);
-  const [loadedFocus, setLoadedFocus] = useState<{ read: number; id: string } | null>(null);
-  const [selected, setSelected] = useState(
-    () => new URLSearchParams(window.location.search).get('entry') || 'tidewell',
-  );
-  const selectedRef = useRef(selected);
-  selectedRef.current = selected;
+  const [loadedFocus, setLoadedFocus] = useState<{ id: string } | null>(null);
   const [tab, setTab] = useState<Tab>('submission');
   const tabRef = useRef(tab);
   tabRef.current = tab;
@@ -53,7 +52,6 @@ export default function App() {
   const [queueExpanded, setQueueExpanded] = useState(
     () => !window.matchMedia('(max-width: 760px)').matches,
   );
-  const [loadError, setLoadError] = useState('');
   const [notice, setNotice] = useState<{ id: number; text: string; error?: boolean } | null>(null);
   const noticeId = useRef(0);
   const [tour, setTour] = useState(false);
@@ -73,7 +71,6 @@ export default function App() {
   const request = useRef<AbortController | null>(null);
   const [citation, setCitation] = useState<Citation | null>(null);
   const citationOrigin = useRef<HTMLElement | null>(null);
-  const [reload, setReload] = useState(0);
   const [sourceExpanded, setSourceExpanded] = useState(true);
   const targetHeading = useRef<string | null>(null);
   const changeTab = (next: Tab, focusId?: string) => {
@@ -88,12 +85,7 @@ export default function App() {
     if (previousTab.current === tab) return;
     previousTab.current = tab;
     const frame = requestAnimationFrame(() => {
-      const headingId = {
-        submission: 'start-title',
-        evidence: 'analysis-title',
-        decision: 'scorecard-title',
-      }[tab];
-      focusPanelHeading(document.getElementById(targetHeading.current ?? headingId));
+      focusPanelHeading(document.getElementById(targetHeading.current ?? headingIds[tab]));
       targetHeading.current = null;
     });
     return () => cancelAnimationFrame(frame);
@@ -102,68 +94,26 @@ export default function App() {
   const dismissNotice = useCallback(() => setNotice(null), []);
   const notifyError = (e: unknown) =>
     setNotice({ id: ++noticeId.current, text: errorText(e), error: true });
-  const workspaceRead = useRef(0);
-  const refreshWorkspace = useCallback(async () => {
-    const read = ++workspaceRead.current;
-    const value = await api<Workspace>('/api/workspace');
-    if (read === workspaceRead.current) setWorkspace(value);
-  }, []);
-  useEffect(() => {
-    void reload;
-    const read = ++workspaceRead.current;
-    let active = true;
-    const controller = new AbortController();
-    setLoadError('');
-    setDetail(null);
-    void Promise.all([
-      api<Workspace>('/api/workspace', {
-        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(45000)]),
-      }),
-      api<Detail>(`/api/entries/${selected}`, {
-        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(45000)]),
-      }),
-    ])
-      .then(([ws, next]) => {
-        if (active) {
-          if (read === workspaceRead.current) setWorkspace(ws);
-          setDetail(next);
-          if (focusLoaded.current) {
-            focusLoaded.current = false;
-            setLoadedFocus({
-              read,
-              id:
-                tabRef.current === 'submission'
-                  ? 'start-title'
-                  : tabRef.current === 'evidence'
-                    ? 'analysis-title'
-                    : 'scorecard-title',
-            });
-          }
-        }
-      })
-      .catch((e) => {
-        if (active)
-          setLoadError(
-            e instanceof Error && e.name === 'TimeoutError'
-              ? 'The server did not respond within 45 seconds. Try connecting again.'
-              : errorText(e),
-          );
-      });
-    return () => {
-      active = false;
-      controller.abort();
-    };
-  }, [selected, reload]);
+  const {
+    workspace,
+    detail,
+    error: loadError,
+    selected,
+    select,
+    reload,
+    reloadVersion,
+    refresh: refreshWorkspace,
+    accept: acceptDetail,
+  } = useWorkspace(() => {
+    if (focusLoaded.current) {
+      focusLoaded.current = false;
+      setLoadedFocus({ id: headingIds[tabRef.current] });
+    }
+  });
   useEffect(() => {
     if (loadedFocus) focusPanelHeading(document.getElementById(loadedFocus.id));
   }, [loadedFocus]);
   useEffect(() => () => request.current?.abort(), []);
-  useEffect(() => {
-    const url = new URL(window.location.href);
-    url.searchParams.set('entry', selected);
-    window.history.replaceState(null, '', url);
-  }, [selected]);
-
   useEffect(() => {
     if (citation) {
       const passage = document.getElementById(`passage-${citation.paragraphId}`);
@@ -171,18 +121,8 @@ export default function App() {
       passage?.scrollIntoView({ behavior: 'auto', block: 'center' });
     }
   }, [citation]);
-  const acceptDetail = (next: Detail) => {
-    if (next.entry.id !== selectedRef.current) return;
-    ++workspaceRead.current;
-    setDetail(next);
-    setWorkspace((old) =>
-      old
-        ? { ...old, entries: old.entries.map((e) => (e.id === next.entry.id ? next.entry : e)) }
-        : old,
-    );
-  };
   const withSavedDraft = async (
-    action: () => void | Promise<void>,
+    action: () => void | boolean | Promise<void> | Promise<boolean>,
     cancel = false,
     kind: PendingAction = 'entry',
   ) => {
@@ -206,8 +146,7 @@ export default function App() {
           });
         return false;
       }
-      await action();
-      return true;
+      return (await action()) !== false;
     } finally {
       transitioning.current = false;
       setPendingAction(null);
@@ -223,7 +162,7 @@ export default function App() {
     if (entry.id === selected) return;
     void withSavedDraft(() => {
       focusLoaded.current = true;
-      setSelected(entry.id);
+      select(entry.id);
       changeTab('submission');
       setCitation(null);
       window.scrollTo({ top: 0 });
@@ -232,7 +171,7 @@ export default function App() {
   const reloadEntry = (discard = false) => {
     const reloadSaved = () => {
       focusLoaded.current = true;
-      setReload((value) => value + 1);
+      reload();
       setCitation(null);
       feedback('Reloading the latest saved entry.');
     };
@@ -396,7 +335,7 @@ export default function App() {
               className="button secondary"
               onClick={() => {
                 focusLoaded.current = true;
-                setReload((n) => n + 1);
+                reload();
               }}
             >
               <RefreshCw size={16} />
@@ -409,7 +348,7 @@ export default function App() {
                 onClick={() => {
                   focusLoaded.current = true;
                   changeTab('submission');
-                  setSelected('tidewell');
+                  select('tidewell');
                 }}
               >
                 Open example workspace
@@ -549,7 +488,7 @@ export default function App() {
                     </button>
                   </section>
                   <ReviewProcess
-                    key={`${detail.entry.id}-${detail.entry.revision}-${reload}`}
+                    key={`${detail.entry.id}-${detail.entry.revision}-${reloadVersion}`}
                     active={tab}
                     detail={detail}
                     criteria={workspace.competition.criteria}
@@ -560,15 +499,7 @@ export default function App() {
                     onReload={() => reloadEntry(true)}
                     transitionPending={transitionPending}
                     exporting={pendingAction === 'export'}
-                    onFinalize={(action) =>
-                      withSavedDraft(
-                        async () => {
-                          await action();
-                        },
-                        false,
-                        'finalize',
-                      )
-                    }
+                    onFinalize={(action) => withSavedDraft(action, false, 'finalize')}
                     onExport={() => void exportPacket()}
                     onReview={(focusId) => changeTab('evidence', focusId)}
                     onRecommend={() => changeTab('decision')}
@@ -630,7 +561,7 @@ export default function App() {
               setCitation(null);
               changeTab('submission');
             } else {
-              setSelected(next.entry.id);
+              select(next.entry.id);
               changeTab('submission');
             }
             void refreshWorkspace().catch(() => {});

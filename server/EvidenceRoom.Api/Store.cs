@@ -68,11 +68,10 @@ public sealed class Store
             InsertReview(db, tx, seed.Id, 1, seed.ExampleReview, "example", "Authored example");
             Audit(db, tx, seed.Id, 1, "received", "Example submission added to this workspace.");
         }
-        Commit(db, tx);
-        access?.Changed();
+        Commit(db, tx, access);
     }
 
-    private void Commit(SqliteConnection db, SqliteTransaction tx)
+    private void Commit(SqliteConnection db, SqliteTransaction tx, WorkspaceSnapshot.Access? access)
     {
         if (persistence is not null)
         {
@@ -81,6 +80,7 @@ public sealed class Store
                 throw new DomainError(429, "This shared demo has reached its storage limit. You can still review and export existing entries.");
         }
         tx.Commit();
+        access?.Changed();
     }
 
     private SqliteConnection Open()
@@ -159,7 +159,7 @@ public sealed class Store
         Execute(db, tx, "INSERT INTO entries VALUES($id,$team,$title,1,$at)", ("$id", id), ("$team", input.Team.Trim()), ("$title", input.Title.Trim()), ("$at", Now()));
         Execute(db, tx, "INSERT INTO submissions VALUES($id,1,$title,$content,$at)", ("$id", id), ("$title", input.Title.Trim()), ("$content", Wire.Pack(paragraphs)), ("$at", Now()));
         Audit(db, tx, id, 1, "received", "Submission received. Ready for evidence review.");
-        var result = Detail(db, tx, id); Commit(db, tx); access?.Changed(); return result;
+        var result = Detail(db, tx, id); Commit(db, tx, access); return result;
     }
     public EntryDetail Revise(string id, EntryInput input)
     {
@@ -174,7 +174,7 @@ public sealed class Store
         Execute(db, tx, "UPDATE entries SET team=$team,title=$title,revision=$rev,updated_at=$at WHERE id=$id", ("$id", id), ("$team", input.Team.Trim()), ("$title", input.Title.Trim()), ("$rev", revision), ("$at", Now()));
         Execute(db, tx, "INSERT INTO submissions VALUES($id,$rev,$title,$content,$at)", ("$id", id), ("$rev", revision), ("$title", input.Title.Trim()), ("$content", Wire.Pack(paragraphs)), ("$at", Now()));
         Audit(db, tx, id, revision, "revised", $"Submission version {revision} received. Previous analyses and assessments remain in the case history.");
-        var result = Detail(db, tx, id); Commit(db, tx); access?.Changed(); return result;
+        var result = Detail(db, tx, id); Commit(db, tx, access); return result;
     }
     private string InsertReview(SqliteConnection db, SqliteTransaction tx, string id, int revision, ReviewContent content, string source, string model)
     {
@@ -192,7 +192,7 @@ public sealed class Store
         Rules.ValidateReview(content, Competition, current.Submission.Paragraphs);
         InsertReview(db, tx, id, expectedRevision, content, "openai", model);
         Audit(db, tx, id, expectedRevision, "analyzed", "AI evidence analysis saved after citation validation.");
-        var result = Detail(db, tx, id); Commit(db, tx); access?.Changed(); return result;
+        var result = Detail(db, tx, id); Commit(db, tx, access); return result;
     }
     public EntryDetail SaveAssessment(string id, AssessmentInput input)
     {
@@ -208,7 +208,7 @@ public sealed class Store
         Execute(db, tx, "INSERT INTO assessments VALUES($id,$rev,$version,$content,$final) ON CONFLICT(entry_id,revision) DO UPDATE SET version=excluded.version,content=excluded.content,finalized=excluded.finalized", ("$id", id), ("$rev", input.ExpectedRevision), ("$version", next.Version), ("$content", Wire.Pack(next)), ("$final", input.Finalize ? 1 : 0));
         if (persistence is not null) Execute(db, tx, "DELETE FROM audit WHERE entry_id=$id AND revision=$rev AND kind='draft-saved'", ("$id", id), ("$rev", input.ExpectedRevision));
         Audit(db, tx, id, input.ExpectedRevision, input.Finalize ? "finalized" : "draft-saved", input.Finalize ? $"Human recommendation recorded: {input.Outcome}. Weighted score {total:0.##}/100." : "Reviewer scorecard draft saved.");
-        var result = Detail(db, tx, id); Commit(db, tx); access?.Changed(); return result;
+        var result = Detail(db, tx, id); Commit(db, tx, access); return result;
     }
     public int Attempts()
     {
@@ -222,8 +222,7 @@ public sealed class Store
         using var db = Open(); using var tx = db.BeginTransaction();
         if (Execute(db, tx, "UPDATE budget SET attempts=attempts+1 WHERE id=1 AND attempts<$limit", ("$limit", limit)) == 0)
             throw new DomainError(429, "The configured AI allowance has been used. You can continue reviewing and scoring manually.");
-        Commit(db, tx);
-        access?.Changed();
+        Commit(db, tx, access);
     }
     public object Export(string id)
     {

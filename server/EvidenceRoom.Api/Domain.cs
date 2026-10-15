@@ -9,9 +9,10 @@ public static class Wire
     public static T Read<T>(string value) => JsonSerializer.Deserialize<T>(value, Json) ?? throw new InvalidDataException("Empty data.");
 }
 
-public sealed class DomainError(int status, string message) : Exception(message)
+public sealed class DomainError(int status, string message, Exception? cause = null, string? operation = null) : Exception(message, cause)
 {
     public int Status { get; } = status;
+    public string? Operation { get; } = operation;
 }
 
 public record Criterion(string Id, string Name, int Weight, string Description);

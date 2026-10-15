@@ -23,13 +23,16 @@ For an AI-suggested distinction, update the structured schema and Python validat
 
 ## Test map
 
-| Boundary                             | Location                                   | Consequences checked                                                                                                                              |
-| ------------------------------------ | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Submission and assessment rules      | `server/EvidenceRoom.Tests/ReviewTests.cs` | Immutable versions, exact score keys/ranges, required final fields, weighted totals                                                               |
-| SQLite transactions                  | Same .NET suite                            | Stale submissions and drafts, final locks, durable concurrent allowance, complete exports                                                         |
-| Provider response and trust contract | `worker/test_review.py`                    | Invented/wrong-passage quotations, refusals, malformed output, duplicate criteria, missing questions, score injection                             |
-| User workflow and HTTP surface       | `tests/workflow.spec.ts`                   | Source links/focus, intake/revision, save/reload/final/export, conflicts, cancellation, keyboard tour, reflow, accessibility, origin restrictions |
-| Actual provider integration          | `scripts/live-check.mjs`                   | Real .NET→Python→Responses→validation→SQLite→export path, including injected instructions                                                         |
+| Boundary                             | Location                                               | Consequences checked                                                                                                                              |
+| ------------------------------------ | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Submission and assessment rules      | `server/EvidenceRoom.Tests/ReviewTests.cs`             | Immutable versions, exact score keys/ranges, required final fields, weighted totals                                                               |
+| SQLite transactions                  | Same .NET suite                                        | Stale submissions and drafts, final locks, durable concurrent allowance, complete exports                                                         |
+| Hosted persistence                   | `server/EvidenceRoom.Tests/SnapshotTests.cs`           | Restart recovery, uncertain writes, generation conflicts, capacity rollback, reads waiting for durability                                         |
+| Startup and request boundary         | `RuntimeSettingsTests.cs`, `ReviewerHttpTests.cs`      | Invalid configuration, exact host/origin checks, JSON requirements, health and safe diagnostics                                                   |
+| Worker process output                | `server/EvidenceRoom.Tests/ReviewWorkerResultTests.cs` | Malformed envelopes, explicit worker failure, prompt identity, independently validated content                                                    |
+| Provider response and trust contract | `worker/test_review.py`                                | Invented/wrong-passage quotations, refusals, malformed output, duplicate criteria, missing questions, score injection                             |
+| User workflow and HTTP surface       | `tests/workflow.spec.ts`                               | Source links/focus, intake/revision, save/reload/final/export, conflicts, cancellation, keyboard tour, reflow, accessibility, origin restrictions |
+| Actual provider integration          | `scripts/live-check.mjs`                               | Real .NET→Python→Responses→validation→SQLite→export path, including injected instructions                                                         |
 
 `npm run check` is the normal handoff command. CI performs the same unpaid checks. Keep live checks outside CI so contributors do not need an API key and a test run cannot silently create charges.
 
